@@ -19,7 +19,6 @@ import java.util.function.Supplier;
 public final class WindowsHardwareProbe {
     private enum MemoryArray { USE, MEMORYDEVICES }
     private enum Memory { DEVICELOCATOR, BANKLABEL, CAPACITY, MANUFACTURER, SPEED }
-    private enum MemoryExtensions { SMBIOSMEMORYTYPE, CONFIGUREDCLOCKSPEED }
     private enum Video { NAME }
     private enum DiskDrive { MODEL, SIZE, INTERFACETYPE, MEDIATYPE, PNPDEVICEID }
     private enum Adapter { INDEX, PNPDEVICEID }
@@ -39,8 +38,6 @@ public final class WindowsHardwareProbe {
     public long installedMemory;
     public int slotsTotal;
     public int modulesWithSpeed;
-    public int modulesWithConfiguredClock;
-    public int modulesWithSmbiosType;
 
     private WindowsHardwareProbe() {
     }
@@ -109,6 +106,7 @@ public final class WindowsHardwareProbe {
         }
 
         WmiResult<Memory> memory = query("Win32_PhysicalMemory", Memory.class);
+        List<SmbiosMemory> speeds = attempt("SMBIOS/RAM", SmbiosMemory::read, Collections.emptyList());
         boolean allCapacitiesKnown = count(memory) > 0;
         long total = 0;
         for (int row = 0; row < count(memory); row++) {
@@ -116,29 +114,18 @@ public final class WindowsHardwareProbe {
             allCapacitiesKnown &= capacity > 0;
             total += capacity;
             String locator = readText(memory.getValue(Memory.DEVICELOCATOR, row));
-            if (locator == null) {
-                locator = readText(memory.getValue(Memory.BANKLABEL, row));
-            }
+            String bank = readText(memory.getValue(Memory.BANKLABEL, row));
             if (positive(memory.getValue(Memory.SPEED, row)) > 0) {
                 modulesWithSpeed++;
             }
-            modules.add(new MemoryModule(locator, capacity,
-                    readText(memory.getValue(Memory.MANUFACTURER, row))));
+            SmbiosMemory speed = SmbiosMemory.match(speeds, locator, bank, capacity);
+            modules.add(new MemoryModule(locator == null ? bank : locator, capacity,
+                    readText(memory.getValue(Memory.MANUFACTURER, row)),
+                    speed == null ? 0 : speed.ratedMtps, speed == null ? 0 : speed.configuredMtps));
         }
         installedMemory = allCapacitiesKnown ? total : 0;
         if (slotsTotal < modules.size()) {
             slotsTotal = 0;
-        }
-
-        // This projection may be unsupported on Windows 7. Keep the base module rows.
-        WmiResult<MemoryExtensions> extended = query("Win32_PhysicalMemory", MemoryExtensions.class);
-        for (int row = 0; row < count(extended); row++) {
-            if (positive(extended.getValue(MemoryExtensions.CONFIGUREDCLOCKSPEED, row)) > 0) {
-                modulesWithConfiguredClock++;
-            }
-            if (positive(extended.getValue(MemoryExtensions.SMBIOSMEMORYTYPE, row)) > 2) {
-                modulesWithSmbiosType++;
-            }
         }
     }
 
@@ -248,10 +235,12 @@ public final class WindowsHardwareProbe {
                 "OSHI visible RAM bytes: " + visibleMemory, "WMI installed RAM bytes: " + installedMemory,
                 "WMI memory places: " + slotsTotal, "WMI installed modules: " + modules.size(),
                 "WMI modules with Speed: " + modulesWithSpeed,
-                "WMI modules with ConfiguredClockSpeed: " + modulesWithConfiguredClock,
-                "WMI modules with SMBIOSMemoryType: " + modulesWithSmbiosType,
                 "WMI graphics controllers: " + gpus.size(), "WMI disk candidates: " + disks.size(),
                 "WMI network mode: " + networkMode, "Unavailable sources: " + warnings);
+        for (MemoryModule module : modules) {
+            lines.add("SMBIOS module: configured=" + module.configuredMtps + ", rated="
+                    + module.ratedMtps + " MT/s (0 = unavailable)");
+        }
         return lines;
     }
 
@@ -259,11 +248,15 @@ public final class WindowsHardwareProbe {
         public final String label;
         public final long capacity;
         public final String manufacturer;
+        public final int ratedMtps;
+        public final int configuredMtps;
 
-        private MemoryModule(String label, long capacity, String manufacturer) {
+        private MemoryModule(String label, long capacity, String manufacturer, int ratedMtps, int configuredMtps) {
             this.label = label;
             this.capacity = capacity;
             this.manufacturer = manufacturer;
+            this.ratedMtps = ratedMtps;
+            this.configuredMtps = configuredMtps;
         }
     }
 

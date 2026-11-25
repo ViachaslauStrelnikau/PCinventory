@@ -22,9 +22,11 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Rectangle;
 import java.util.concurrent.ExecutionException;
 
 public final class InventoryWindow extends JFrame {
@@ -68,7 +70,8 @@ public final class InventoryWindow extends JFrame {
         windowScroll.setBorder(BorderFactory.createEmptyBorder());
         windowScroll.getVerticalScrollBar().setUnitIncrement(16);
         setContentPane(windowScroll);
-        setSize(820, 700);
+        Rectangle usable = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        setSize(Math.min(820, usable.width), Math.min(900, usable.height));
         setLocationRelativeTo(null);
 
         if (preview) {
