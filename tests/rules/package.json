@@ -1,0 +1,16 @@
+{
+  "name": "pcinventory-firebase-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^24.15.0"
+  },
+  "scripts": {
+    "test": "npx --yes firebase-tools@15.37.0 emulators:exec --project demo-pcinventory --config ../../firebase.json --only auth,firestore \"node --test firestore.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
+    "firebase": "12.19.0"
+  }
+}

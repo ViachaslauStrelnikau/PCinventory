@@ -1,8 +1,260 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function reportPath(reportId) {
+      return /databases/$(database)/documents/inventoryReports/$(reportId);
+    }
+
+    function computerPath(deviceId) {
+      return /databases/$(database)/documents/computers/$(deviceId);
+    }
+
+    function hasEnabledRole(role) {
+      return request.auth != null && enabledRole(get(userPath(request.auth.uid)).data, role);
+    }
+
+    function enabledRole(user, role) {
+      return user.enabled == true && user.role == role;
+    }
+
+    function acceptingReports() {
+      return get(/databases/$(database)/documents/settings/inventory).data.acceptingReports == true;
+    }
+
+    function nonBlank(value, maxLength) {
+      return value.size() <= maxLength
+        && value.matches('(?s).*[^\\s\\p{Z}\\x{000B}\\x{0085}\\x{FEFF}].*');
+    }
+
+    function blankOrText(value, maxLength) {
+      return value == '' || nonBlank(value, maxLength);
+    }
+
+    function nullableText(value) {
+      return value == null || value.matches('(?s).{1,256}');
+    }
+
+    function nullableInt(value, min, max) {
+      return value == null || (value is int && value >= min && value <= max);
+    }
+
+    function nullableCapacity(value) {
+      return nullableInt(value, 1, 9007199254740991);
+    }
+
+    function boundedList(value, maxLength) {
+      return value is list && value.size() <= maxLength;
+    }
+
+    function uuidPattern() {
+      return '[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}';
+    }
+
+    function validUuid(value) {
+      return value.matches('^' + uuidPattern() + '$');
+    }
+
+    function validDeviceId(deviceId, identitySource) {
+      return identitySource in ['SMBIOS', 'LOCAL']
+        && deviceId.matches('^' + identitySource.lower() + '-' + uuidPattern() + '$');
+    }
+
+    function assignmentKeys() {
+      return ['building', 'floor', 'room', 'inventoryNumber', 'employeeName', 'department', 'comment'];
+    }
+
+    function validLocation(assignment) {
+      return nonBlank(assignment.building, 256) && nonBlank(assignment.floor, 64)
+        && nonBlank(assignment.room, 64);
+    }
+
+    function validReportAssignment(assignment) {
+      return assignment is map && assignment.keys().hasOnly(assignmentKeys())
+        && assignment.keys().hasAll(['building', 'floor', 'room']) && validLocation(assignment)
+        && nonBlank(assignment.get('inventoryNumber', '_'), 256)
+        && nonBlank(assignment.get('employeeName', '_'), 256)
+        && nonBlank(assignment.get('department', '_'), 256)
+        && nonBlank(assignment.get('comment', '_'), 2000);
+    }
+
+    function hardwareKeys() {
+      return ['schemaVersion', 'agentVersion', 'identitySource', 'hostname',
+        'cpuManufacturer', 'cpuModel', 'cpuModelRaw', 'cpuCores', 'cpuThreads',
+        'motherboardManufacturer', 'motherboardModel', 'motherboardSerial', 'computerManufacturer', 'computerModel',
+        'osName', 'osVersion', 'osBuild', 'osArchitecture', 'gpuModels', 'gpus',
+        'ramTotalBytes', 'ramTotalGiB', 'ramType', 'ramSlotsTotal', 'ramSlotsUsed', 'ramSlotsFree',
+        'ramSlotTopology', 'ramSlots', 'storageTotalBytes', 'hasSsd', 'disks',
+        'networkMode', 'staticIpv4', 'networks', 'warnings'];
+    }
+
+    function validSystem(h) {
+      return nullableText(h.cpuManufacturer) && nullableText(h.cpuModel) && nullableText(h.cpuModelRaw)
+        && nullableInt(h.cpuCores, 1, 65535) && nullableInt(h.cpuThreads, 1, 65535)
+        && (h.cpuCores == null || h.cpuThreads == null || h.cpuCores <= h.cpuThreads)
+        && nullableText(h.motherboardManufacturer) && nullableText(h.motherboardModel)
+        && nullableText(h.motherboardSerial) && nullableText(h.computerManufacturer) && nullableText(h.computerModel)
+        && nullableText(h.osName) && nullableText(h.osVersion) && nullableText(h.osBuild)
+        && h.osArchitecture in [null, 'x86', 'x64']
+        && boundedList(h.gpuModels, 16) && boundedList(h.gpus, 16);
+    }
+
+    function validMemory(h) {
+      let bytes = h.ramTotalBytes;
+      let total = h.ramSlotsTotal;
+      let used = h.ramSlotsUsed;
+      let free = h.ramSlotsFree;
+      let slotCount = h.ramSlots.size();
+      return nullableCapacity(bytes) && h.ramTotalGiB == (bytes == null ? null : bytes / 1073741824.0)
+        && h.ramType in ['DDR', 'DDR2', 'DDR2 FB-DIMM', 'DDR3', 'DDR4', 'DDR5', 'LPDDR', 'LPDDR2',
+          'LPDDR3', 'LPDDR4', 'LPDDR5', 'MIXED', 'UNKNOWN']
+        && nullableInt(total, 0, 65535) && nullableInt(used, 0, 65535)
+        && nullableInt(free, 0, 65535) && h.ramSlotTopology in ['COMPLETE', 'PARTIAL', 'UNKNOWN']
+        && boundedList(h.ramSlots, 64)
+        && (total == null || (slotCount <= total && (used == null || used <= total)))
+        && (free == null || (total != null && used != null && free == total - used))
+        && (h.ramSlotTopology != 'COMPLETE' || (total == slotCount && used != null && free != null));
+    }
+
+    function validHardware(h, deviceId) {
+      let fields = hardwareKeys();
+      return h is map && h.keys().toSet() == fields.toSet()
+        && validDeviceId(deviceId, h.identitySource)
+        && h.schemaVersion is int && h.schemaVersion == 1
+        && nonBlank(h.agentVersion, 64) && nonBlank(h.hostname, 255)
+        && validSystem(h) && validMemory(h)
+        && nullableCapacity(h.storageTotalBytes) && h.hasSsd in [null, true, false]
+        && boundedList(h.disks, 64)
+        && h.networkMode in ['DHCP', 'STATIC', 'MIXED', 'UNKNOWN']
+        && boundedList(h.staticIpv4, 64) && (h.networkMode != 'DHCP' || h.staticIpv4.size() == 0)
+        && boundedList(h.networks, 64) && boundedList(h.warnings, 64);
+    }
+
+    function validSubmission(report, reportId) {
+      let fields = ['reportId', 'deviceId', 'hardware', 'assignment', 'submittedAt', 'submittedBy', 'status'];
+      return report.keys().toSet() == fields.toSet()
+        && validUuid(reportId) && report.reportId == reportId
+        && report.status == 'PENDING' && report.submittedBy == request.auth.uid
+        && report.submittedAt == request.time
+        && validReportAssignment(report.assignment) && validHardware(report.hardware, report.deviceId);
+    }
+
+    function validReview(before, after) {
+      return before.status == 'PENDING' && after.status in ['ACCEPTED', 'REJECTED']
+        && after.diff(before).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy'])
+        && after.reviewedAt == request.time && after.reviewedAt >= before.submittedAt
+        && after.reviewedBy == request.auth.uid;
+    }
+
+    function validComputerAssignment(card) {
+      return card.keys().hasAll(assignmentKeys()) && validLocation(card)
+        && blankOrText(card.inventoryNumber, 256) && blankOrText(card.employeeName, 256)
+        && blankOrText(card.department, 256) && blankOrText(card.comment, 2000);
+    }
+
+    function validAssignmentAudit(card) {
+      return card.assignmentUpdatedAt == request.time && card.assignmentUpdatedBy == request.auth.uid;
+    }
+
+    function matchesAcceptedReport(card, report, reportId) {
+      // Every report hardware field must be present and unchanged in the flat card.
+      let technicalDiff = card.diff(report.hardware);
+      let metadata = ['deviceId', 'status', 'lastReportId', 'lastInventoryAt', 'assignmentUpdatedAt', 'assignmentUpdatedBy'];
+      return card.deviceId == report.deviceId && report.reportId == reportId
+        && card.lastReportId == reportId && card.lastInventoryAt == report.submittedAt
+        && technicalDiff.changedKeys().size() == 0 && technicalDiff.removedKeys().size() == 0
+        && technicalDiff.addedKeys().hasOnly(assignmentKeys().concat(metadata))
+        && validComputerAssignment(card)
+        && card.building == report.assignment.building && card.floor == report.assignment.floor
+        && card.room == report.assignment.room;
+    }
+
+    function matchesOptionalAssignment(card, report, previous, key) {
+      return card[key] == previous.get(key, '')
+        || (report.keys().hasAny([key]) && card[key] == report[key]);
+    }
+
+    function matchesOptionalAssignments(card, report, previous) {
+      return matchesOptionalAssignment(card, report, previous, 'inventoryNumber')
+        && matchesOptionalAssignment(card, report, previous, 'employeeName')
+        && matchesOptionalAssignment(card, report, previous, 'department')
+        && matchesOptionalAssignment(card, report, previous, 'comment');
+    }
+
+    function newerReport(card, previous) {
+      return card.lastInventoryAt > previous.lastInventoryAt
+        || (card.lastInventoryAt == previous.lastInventoryAt && card.lastReportId > previous.lastReportId);
+    }
+
+    function validAcceptanceUpdate(card, previous) {
+      let assignmentChanged = card.diff(previous).affectedKeys().hasAny(assignmentKeys());
+      return card.get('status', 'ACTIVE') == previous.get('status', 'ACTIVE')
+        && newerReport(card, previous)
+        && (assignmentChanged ? validAssignmentAudit(card)
+          : card.assignmentUpdatedAt == previous.assignmentUpdatedAt
+            && card.assignmentUpdatedBy == previous.assignmentUpdatedBy);
+    }
+
+    function linkedAcceptance(deviceId, card, previous) {
+      let pending = get(reportPath(card.lastReportId)).data;
+      let accepted = getAfter(reportPath(card.lastReportId)).data;
+      return card.deviceId == deviceId && validUuid(card.lastReportId)
+        && validReview(pending, accepted) && accepted.status == 'ACCEPTED'
+        && matchesAcceptedReport(card, pending, card.lastReportId)
+        && matchesOptionalAssignments(card, pending.assignment, previous == null ? {} : previous)
+        && (previous == null ? card.status == 'ACTIVE' && validAssignmentAudit(card)
+          : validAcceptanceUpdate(card, previous));
+    }
+
+    function linkedCardAfterAcceptance(reportId, report) {
+      let path = computerPath(report.deviceId);
+      let card = getAfter(path).data;
+      // lastReportId must have changed in this commit, even for inconsistent old data.
+      return matchesAcceptedReport(card, report, reportId)
+        && (!exists(path) || get(path).data.lastReportId != reportId);
+    }
+
+    function unchangedComputer(deviceId) {
+      let path = computerPath(deviceId);
+      return exists(path) ? getAfter(path).data == get(path).data : !existsAfter(path);
+    }
+
+    function independentAssignmentUpdate(card, previous) {
+      let changed = card.diff(previous).affectedKeys();
+      return changed.hasOnly(assignmentKeys().concat(['status', 'assignmentUpdatedAt', 'assignmentUpdatedBy']))
+        && (!changed.hasAny(['status']) || card.status in ['ACTIVE', 'RETIRED'])
+        && validComputerAssignment(card) && validAssignmentAudit(card);
+    }
+
+    match /users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /settings/inventory {
+      allow get: if hasEnabledRole('ADMIN');
+      allow create, update: if hasEnabledRole('ADMIN')
+        && request.resource.data.keys().hasOnly(['acceptingReports'])
+        && request.resource.data.acceptingReports is bool;
+    }
+
+    match /inventoryReports/{reportId} {
+      allow create: if hasEnabledRole('COLLECTOR') && acceptingReports()
+        && validSubmission(request.resource.data, reportId);
+      allow get, list: if hasEnabledRole('ADMIN');
+      allow update: if hasEnabledRole('ADMIN') && validReview(resource.data, request.resource.data)
+        && (request.resource.data.status == 'ACCEPTED' ? linkedCardAfterAcceptance(reportId, resource.data)
+          : unchangedComputer(resource.data.deviceId));
+    }
+
+    match /computers/{deviceId} {
+      allow get, list: if hasEnabledRole('ADMIN');
+      allow create: if hasEnabledRole('ADMIN') && linkedAcceptance(deviceId, request.resource.data, null);
+      allow update: if hasEnabledRole('ADMIN')
+        && (independentAssignmentUpdate(request.resource.data, resource.data)
+          || linkedAcceptance(deviceId, request.resource.data, resource.data));
     }
   }
 }

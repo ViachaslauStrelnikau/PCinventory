@@ -3,6 +3,7 @@
 /web/.angular/
 /web/dist/
 /web/out-tsc/
+/tests/rules/node_modules/
 
 .env
 .env.*

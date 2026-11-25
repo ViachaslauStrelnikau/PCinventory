@@ -1,4 +1,13 @@
 {
   "indexes": [],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    { "collectionGroup": "inventoryReports", "fieldPath": "hardware", "indexes": [] },
+    { "collectionGroup": "inventoryReports", "fieldPath": "assignment.comment", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "comment", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "gpus", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "ramSlots", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "disks", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "networks", "indexes": [] },
+    { "collectionGroup": "computers", "fieldPath": "warnings", "indexes": [] }
+  ]
 }

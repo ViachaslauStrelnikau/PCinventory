@@ -48,4 +48,13 @@ npm --prefix web start
 npx --yes firebase-tools@15.37.0 emulators:start --only auth,firestore,hosting --project demo-pcinventory
 ```
 
-Hosting доступен по адресу `http://127.0.0.1:5000`, панель эмуляторов — `http://127.0.0.1:4000`. Проект с префиксом `demo-` используется локально. Правила Firestore закрывают чтение и запись, пока не утверждены контракт и модель доступа. Приложения запускаются без credentials и пока не обращаются к Firebase.
+Hosting доступен по адресу `http://127.0.0.1:5000`, панель эмуляторов — `http://127.0.0.1:4000`. Проект с префиксом `demo-` используется локально.
+
+Для автоматической проверки ролей и принятия отчётов выполните из корня репозитория.
+
+```powershell
+npm --prefix tests/rules ci
+npm --prefix tests/rules test
+```
+
+Тесты запускают Auth и Firestore Emulator и создают синтетические записи. Windows-агент и веб-приложение подключаются к Firebase на следующих этапах. [Правила доступа и проверка](docs/SECURITY.md)
