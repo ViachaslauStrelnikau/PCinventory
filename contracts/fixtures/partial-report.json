@@ -1,0 +1,90 @@
+{
+  "reportId": "6c021ce0-b1a0-4680-8780-f210f00f0004",
+  "deviceId": "local-6c021ce0-b1a0-4680-8780-f210f00f0002",
+  "hardware": {
+    "schemaVersion": 1,
+    "agentVersion": "0.1.0",
+    "identitySource": "LOCAL",
+    "hostname": "TEST-LEGACY-01",
+    "cpuManufacturer": "Intel",
+    "cpuModel": "Intel Core i5-3470 CPU",
+    "cpuModelRaw": "Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz",
+    "cpuCores": 4,
+    "cpuThreads": 4,
+    "motherboardManufacturer": null,
+    "motherboardModel": null,
+    "motherboardSerial": null,
+    "computerManufacturer": null,
+    "computerModel": null,
+    "osName": "Windows 7 SP1",
+    "osVersion": "6.1",
+    "osBuild": "7601",
+    "osArchitecture": "x86",
+    "gpuModels": [
+      "Test VGA"
+    ],
+    "gpus": [
+      {
+        "model": "Test VGA",
+        "manufacturer": null,
+        "vramBytes": null
+      }
+    ],
+    "ramTotalBytes": 4294967296,
+    "ramTotalGiB": 4,
+    "ramType": "UNKNOWN",
+    "ramSlotsTotal": 2,
+    "ramSlotsUsed": 1,
+    "ramSlotsFree": null,
+    "ramSlotTopology": "PARTIAL",
+    "ramSlots": [
+      {
+        "slotId": null,
+        "bankLabel": null,
+        "occupied": true,
+        "capacityBytes": 4294967296,
+        "memoryType": null,
+        "speedMtps": null,
+        "configuredSpeedMtps": null,
+        "manufacturer": null,
+        "partNumber": null,
+        "formFactor": null
+      }
+    ],
+    "storageTotalBytes": 250000000000,
+    "hasSsd": null,
+    "disks": [
+      {
+        "model": "Test disk",
+        "type": "UNKNOWN",
+        "capacityBytes": 250000000000,
+        "interface": "SCSI"
+      }
+    ],
+    "networkMode": "DHCP",
+    "staticIpv4": [],
+    "networks": [
+      {
+        "name": "Ethernet",
+        "mode": "DHCP",
+        "staticIpv4": []
+      }
+    ],
+    "warnings": [
+      "IDENTITY_PROFILE_FALLBACK",
+      "RAM_SLOT_TOPOLOGY_PARTIAL",
+      "RAM_SPEED_UNAVAILABLE",
+      "DISK_TYPES_UNAVAILABLE"
+    ]
+  },
+  "assignment": {
+    "floor": "1",
+    "room": "010"
+  },
+  "submittedAt": {
+    "seconds": 1795600800,
+    "nanoseconds": 123000000
+  },
+  "submittedBy": "test-collector",
+  "status": "PENDING"
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pcinventory.invalid/contracts/v1/computer-report.schema.json",
+  "title": "PCinventory submitted report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportId",
+    "deviceId",
+    "hardware",
+    "assignment",
+    "submittedAt",
+    "submittedBy",
+    "status"
+  ],
+  "properties": {
+    "reportId": {
+      "$ref": "shared.schema.json#/$defs/uuid"
+    },
+    "deviceId": {
+      "$ref": "shared.schema.json#/$defs/deviceId"
+    },
+    "hardware": {
+      "type": "object",
+      "$ref": "shared.schema.json#/$defs/hardware",
+      "unevaluatedProperties": false
+    },
+    "assignment": {
+      "$ref": "shared.schema.json#/$defs/reportAssignment"
+    },
+    "submittedAt": {
+      "$ref": "shared.schema.json#/$defs/timestamp"
+    },
+    "submittedBy": {
+      "$ref": "shared.schema.json#/$defs/uid"
+    },
+    "status": {
+      "enum": [
+        "PENDING",
+        "ACCEPTED",
+        "REJECTED"
+      ]
+    },
+    "reviewedAt": {
+      "$ref": "shared.schema.json#/$defs/timestamp"
+    },
+    "reviewedBy": {
+      "$ref": "shared.schema.json#/$defs/uid"
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "const": "PENDING"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "reviewedAt": false,
+      "reviewedBy": false
+    }
+  },
+  "else": {
+    "required": [
+      "reviewedAt",
+      "reviewedBy"
+    ]
+  }
+}

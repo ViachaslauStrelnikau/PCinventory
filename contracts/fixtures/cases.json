@@ -1,0 +1,393 @@
+[
+  {
+    "name": "complete RAM with different modules",
+    "source": "pending",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "partial legacy scan",
+    "source": "partial",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "accepted report",
+    "source": "accepted",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "rejected report",
+    "source": "accepted",
+    "changes": [
+      {
+        "path": "/status",
+        "value": "REJECTED"
+      }
+    ],
+    "expected": null
+  },
+  {
+    "name": "flat accepted computer",
+    "source": "computer",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "retired computer",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/status",
+        "value": "RETIRED"
+      }
+    ],
+    "expected": null
+  },
+  {
+    "name": "legacy computer without status",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/status"
+      }
+    ],
+    "expected": null
+  },
+  {
+    "name": "pending report with administrative metadata",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/reviewedBy",
+        "value": "test-admin"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "reviewed report missing administrator",
+    "source": "accepted",
+    "changes": [
+      {
+        "path": "/reviewedBy"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "review earlier than submission",
+    "source": "accepted",
+    "changes": [
+      {
+        "path": "/reviewedAt/seconds",
+        "value": 1795600799
+      }
+    ],
+    "expected": "reviewedAt"
+  },
+  {
+    "name": "Firestore timestamp nanoseconds out of range",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/submittedAt/nanoseconds",
+        "value": 1000000000
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "unknown assignment field",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/status",
+        "value": "ACTIVE"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "numeric room loses leading zero",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/room",
+        "value": 10
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "blank floor",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/floor",
+        "value": " \t "
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "blank optional assignment must be omitted",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/building",
+        "value": ""
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "unknown nested hardware field",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/privateField",
+        "value": "unexpected"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "unknown computer field",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/unexpected",
+        "value": true
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "unknown module field",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlots/1/extra",
+        "value": 1
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "missing nullable module field",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlots/3/speedMtps"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "empty slot cannot have capacity",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlots/0/capacityBytes",
+        "value": 8589934592
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "wrong free memory count",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlotsFree",
+        "value": 1
+      }
+    ],
+    "expected": "RAM slot counts"
+  },
+  {
+    "name": "wrong installed memory count",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlotsUsed",
+        "value": 3
+      },
+      {
+        "path": "/hardware/ramSlotsFree",
+        "value": 1
+      }
+    ],
+    "expected": "RAM slot counts"
+  },
+  {
+    "name": "duplicate labels for a complete topology",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlots/3/slotId",
+        "value": "dimm a2"
+      },
+      {
+        "path": "/hardware/ramSlots/3/bankLabel",
+        "value": "bank 1"
+      }
+    ],
+    "expected": "complete RAM topology"
+  },
+  {
+    "name": "complete topology requires real labels",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramSlots/1/slotId",
+        "value": null
+      }
+    ],
+    "expected": "complete RAM topology"
+  },
+  {
+    "name": "mismatched GiB",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramTotalGiB",
+        "value": 22
+      }
+    ],
+    "expected": "ramTotalGiB"
+  },
+  {
+    "name": "byte counts must be exactly representable",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/ramTotalBytes",
+        "value": 9007199254740992
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "wrong identity source",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/identitySource",
+        "value": "LOCAL"
+      }
+    ],
+    "expected": "identitySource"
+  },
+  {
+    "name": "incorrect disk aggregate",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/storageTotalBytes",
+        "value": 1000000000
+      }
+    ],
+    "expected": "storageTotalBytes"
+  },
+  {
+    "name": "incorrect SSD summary",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/hasSsd",
+        "value": false
+      }
+    ],
+    "expected": "hasSsd"
+  },
+  {
+    "name": "wrong GPU model summary",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/gpuModels",
+        "value": [
+          "other GPU"
+        ]
+      }
+    ],
+    "expected": "gpuModels"
+  },
+  {
+    "name": "DHCP address cannot be stored",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/networks/1/staticIpv4",
+        "value": [
+          "192.0.2.1"
+        ]
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "invalid IPv4 octet",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/staticIpv4",
+        "value": [
+          "192.0.2.256"
+        ]
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "APIPA address cannot be stored",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/staticIpv4",
+        "value": [
+          "169.254.3.5"
+        ]
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "missing aggregate IPv4",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/staticIpv4",
+        "value": []
+      }
+    ],
+    "expected": "staticIpv4"
+  },
+  {
+    "name": "mixed mode is required with both adapter modes",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/networkMode",
+        "value": "STATIC"
+      }
+    ],
+    "expected": "networkMode"
+  },
+  {
+    "name": "warning code is versioned",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/hardware/warnings",
+        "value": [
+          "other"
+        ]
+      }
+    ],
+    "expected": "JSON Schema"
+  }
+]

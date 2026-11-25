@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'agent/**'
+      - 'contracts/**'
       - '.github/workflows/release-agent.yml'
   workflow_dispatch:
 

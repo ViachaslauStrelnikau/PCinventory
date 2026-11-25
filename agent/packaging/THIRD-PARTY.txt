@@ -10,4 +10,5 @@ Public domain. https://www.7-zip.org/sdk.html
 
 OSHI 7.8.0 (MIT), JNA 5.19.1 (Apache-2.0 option),
 SLF4J 2.0.20 (MIT).
+Jackson 2.22.x, NetworkNT JSON Schema Validator 2.0.4, ITU 1.14.0 and SnakeYAML 2.5 (Apache-2.0).
 Names, licenses and notices for dependencies are included under licenses/.

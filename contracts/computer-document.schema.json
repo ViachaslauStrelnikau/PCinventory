@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pcinventory.invalid/contracts/v1/computer-document.schema.json",
+  "title": "PCinventory accepted computer v1",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "allOf": [
+    {
+      "$ref": "shared.schema.json#/$defs/hardware"
+    },
+    {
+      "$ref": "shared.schema.json#/$defs/computerAssignment"
+    }
+  ],
+  "required": [
+    "deviceId",
+    "lastReportId",
+    "lastInventoryAt",
+    "assignmentUpdatedAt",
+    "assignmentUpdatedBy"
+  ],
+  "properties": {
+    "deviceId": {
+      "$ref": "shared.schema.json#/$defs/deviceId"
+    },
+    "status": {
+      "enum": [
+        "ACTIVE",
+        "RETIRED"
+      ],
+      "default": "ACTIVE"
+    },
+    "lastReportId": {
+      "$ref": "shared.schema.json#/$defs/uuid"
+    },
+    "lastInventoryAt": {
+      "$ref": "shared.schema.json#/$defs/timestamp"
+    },
+    "assignmentUpdatedAt": {
+      "$ref": "shared.schema.json#/$defs/timestamp"
+    },
+    "assignmentUpdatedBy": {
+      "$ref": "shared.schema.json#/$defs/uid"
+    }
+  }
+}

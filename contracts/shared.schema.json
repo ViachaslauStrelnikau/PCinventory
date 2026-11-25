@@ -1,0 +1,672 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pcinventory.invalid/contracts/v1/shared.schema.json",
+  "title": "PCinventory shared data types v1",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?![\\s\\S])"
+    },
+    "deviceId": {
+      "type": "string",
+      "pattern": "^(?:local|smbios)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?![\\s\\S])"
+    },
+    "uid": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
+    "timestamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seconds",
+        "nanoseconds"
+      ],
+      "properties": {
+        "seconds": {
+          "type": "integer",
+          "minimum": -62135596800,
+          "maximum": 253402300799
+        },
+        "nanoseconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999999999
+        }
+      }
+    },
+    "ipv4": {
+      "type": "string",
+      "pattern": "^(?!127\\.)(?!169\\.254\\.)(?:[1-9][0-9]?|1[0-9]{2}|2[0-3][0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?![\\s\\S])"
+    },
+    "nullableText": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "capacity": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "enum": [
+          "CPU_ATTRIBUTES_UNAVAILABLE",
+          "SYSTEM_ATTRIBUTES_UNAVAILABLE",
+          "OS_ATTRIBUTES_UNAVAILABLE",
+          "GPU_ATTRIBUTES_UNAVAILABLE",
+          "RAM_MODULES_UNAVAILABLE",
+          "RAM_CAPACITY_OS_VISIBLE",
+          "RAM_SLOT_TOPOLOGY_PARTIAL",
+          "RAM_SOURCE_CONFLICT",
+          "RAM_SPEED_UNAVAILABLE",
+          "DISK_ATTRIBUTES_UNAVAILABLE",
+          "DISK_TYPES_UNAVAILABLE",
+          "NETWORK_MODE_UNAVAILABLE",
+          "NETWORK_ADAPTER_UNCLASSIFIED",
+          "STATIC_IPV4_UNAVAILABLE",
+          "IDENTITY_PROFILE_FALLBACK"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "manufacturer",
+        "vramBytes"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "manufacturer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "vramBytes": {
+          "$ref": "#/$defs/capacity"
+        }
+      }
+    },
+    "ramSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slotId",
+        "bankLabel",
+        "occupied",
+        "capacityBytes",
+        "memoryType",
+        "speedMtps",
+        "configuredSpeedMtps",
+        "manufacturer",
+        "partNumber",
+        "formFactor"
+      ],
+      "properties": {
+        "slotId": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "bankLabel": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "occupied": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "capacityBytes": {
+          "$ref": "#/$defs/capacity"
+        },
+        "memoryType": {
+          "enum": [
+            "DDR",
+            "DDR2",
+            "DDR2 FB-DIMM",
+            "DDR3",
+            "DDR4",
+            "DDR5",
+            "LPDDR",
+            "LPDDR2",
+            "LPDDR3",
+            "LPDDR4",
+            "LPDDR5",
+            null
+          ]
+        },
+        "speedMtps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "configuredSpeedMtps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "manufacturer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "partNumber": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "formFactor": {
+          "$ref": "#/$defs/nullableText"
+        }
+      },
+      "if": {
+        "properties": {
+          "occupied": {
+            "const": true
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "capacityBytes": {
+            "type": "null"
+          },
+          "memoryType": {
+            "type": "null"
+          },
+          "speedMtps": {
+            "type": "null"
+          },
+          "configuredSpeedMtps": {
+            "type": "null"
+          },
+          "manufacturer": {
+            "type": "null"
+          },
+          "partNumber": {
+            "type": "null"
+          },
+          "formFactor": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "disk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "type",
+        "capacityBytes",
+        "interface"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "type": {
+          "enum": [
+            "SSD",
+            "HDD",
+            "UNKNOWN"
+          ]
+        },
+        "capacityBytes": {
+          "$ref": "#/$defs/capacity"
+        },
+        "interface": {
+          "$ref": "#/$defs/nullableText"
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "mode",
+        "staticIpv4"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "mode": {
+          "enum": [
+            "STATIC",
+            "DHCP",
+            "UNKNOWN"
+          ]
+        },
+        "staticIpv4": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ipv4"
+          },
+          "uniqueItems": true
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "DHCP",
+              "UNKNOWN"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "staticIpv4": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    "reportAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "floor",
+        "room"
+      ],
+      "properties": {
+        "floor": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "room": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "inventoryNumber": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "employeeName": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "department": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "building": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 2000,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        }
+      }
+    },
+    "computerAssignment": {
+      "type": "object",
+      "required": [
+        "floor",
+        "room",
+        "inventoryNumber",
+        "employeeName",
+        "department",
+        "building",
+        "comment"
+      ],
+      "properties": {
+        "floor": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "room": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "inventoryNumber": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+            },
+            {
+              "const": ""
+            }
+          ]
+        },
+        "employeeName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+            },
+            {
+              "const": ""
+            }
+          ]
+        },
+        "department": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+            },
+            {
+              "const": ""
+            }
+          ]
+        },
+        "building": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+            },
+            {
+              "const": ""
+            }
+          ]
+        },
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000,
+              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+            },
+            {
+              "const": ""
+            }
+          ]
+        }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "agentVersion",
+        "identitySource",
+        "hostname",
+        "cpuManufacturer",
+        "cpuModel",
+        "cpuModelRaw",
+        "cpuCores",
+        "cpuThreads",
+        "motherboardManufacturer",
+        "motherboardModel",
+        "motherboardSerial",
+        "computerManufacturer",
+        "computerModel",
+        "osName",
+        "osVersion",
+        "osBuild",
+        "osArchitecture",
+        "gpuModels",
+        "gpus",
+        "ramTotalBytes",
+        "ramTotalGiB",
+        "ramType",
+        "ramSlotsTotal",
+        "ramSlotsUsed",
+        "ramSlotsFree",
+        "ramSlotTopology",
+        "ramSlots",
+        "storageTotalBytes",
+        "hasSsd",
+        "disks",
+        "networkMode",
+        "staticIpv4",
+        "networks",
+        "warnings"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "agentVersion": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "identitySource": {
+          "enum": [
+            "SMBIOS",
+            "LOCAL"
+          ]
+        },
+        "hostname": {
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+        },
+        "cpuManufacturer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "cpuModel": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "cpuModelRaw": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "cpuCores": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "cpuThreads": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "motherboardManufacturer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "motherboardModel": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "motherboardSerial": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "computerManufacturer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "computerModel": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "osName": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "osVersion": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "osBuild": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "osArchitecture": {
+          "enum": [
+            "x86",
+            "x64",
+            null
+          ]
+        },
+        "gpuModels": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+          },
+          "uniqueItems": true
+        },
+        "gpus": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/gpu"
+          }
+        },
+        "ramTotalBytes": {
+          "$ref": "#/$defs/capacity"
+        },
+        "ramTotalGiB": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "maximum": 8388607.999999999
+        },
+        "ramType": {
+          "enum": [
+            "DDR",
+            "DDR2",
+            "DDR2 FB-DIMM",
+            "DDR3",
+            "DDR4",
+            "DDR5",
+            "LPDDR",
+            "LPDDR2",
+            "LPDDR3",
+            "LPDDR4",
+            "LPDDR5",
+            "MIXED",
+            "UNKNOWN"
+          ]
+        },
+        "ramSlotsTotal": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "ramSlotsUsed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "ramSlotsFree": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "ramSlotTopology": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "UNKNOWN"
+          ]
+        },
+        "ramSlots": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ramSlot"
+          }
+        },
+        "storageTotalBytes": {
+          "$ref": "#/$defs/capacity"
+        },
+        "hasSsd": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disks": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/disk"
+          }
+        },
+        "networkMode": {
+          "enum": [
+            "DHCP",
+            "STATIC",
+            "MIXED",
+            "UNKNOWN"
+          ]
+        },
+        "staticIpv4": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ipv4"
+          },
+          "uniqueItems": true
+        },
+        "networks": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/network"
+          }
+        },
+        "warnings": {
+          "$ref": "#/$defs/warnings"
+        }
+      },
+      "if": {
+        "properties": {
+          "networkMode": {
+            "const": "DHCP"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "staticIpv4": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  }
+}
