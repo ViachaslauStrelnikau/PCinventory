@@ -48,7 +48,8 @@
                   } @else if (field.kind === 'addresses') {
                     <input [value]="item[field.key]" [disabled]="item['mode'] !== 'STATIC'" (change)="update(item, field, $event.target.value)">
                   } @else {
-                    <input [ngModelOptions]="standalone" [ngModel]="item[field.key]" (ngModelChange)="update(item, field, $event)">
+                    <input [attr.list]="group.key === 'disks' && field.key === 'interface' ? 'disk-interface-options' : null"
+                      [ngModelOptions]="standalone" [ngModel]="item[field.key]" (ngModelChange)="update(item, field, $event)">
                   }
                 </label>
               }
@@ -58,6 +59,15 @@
         <button type="button" (click)="add(group)">Добавить строку</button>
       </details>
     }
+    <datalist id="disk-interface-options">
+      <option value="NVMe"></option>
+      <option value="SATA"></option>
+      <option value="SAS"></option>
+      <option value="SCSI"></option>
+      <option value="ATA"></option>
+      <option value="USB"></option>
+      <option value="RAID"></option>
+    </datalist>
     <div class="actions editor-actions">
       <button type="submit" class="primary" [disabled]="!editor.valid || busy()">{{ busy() ? 'Сохранение…' : saveLabel() }}</button>
       <button type="button" (click)="cancel.emit()">Отмена</button>
