@@ -126,21 +126,31 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 .check { display: flex; align-items: baseline; gap: .48rem; padding: .25rem 0; cursor: pointer; overflow-wrap: anywhere; }
 .check input { margin: 0; flex-shrink: 0; }
 .registry-grid { display: grid; grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr); gap: .9rem; align-items: start; }
-.location-tree { padding: .85rem .7rem; }
+.location-tree {
+  --tree-step: 1.4rem;
+  --tree-marker-width: .75rem;
+  --tree-marker-gap: .18rem;
+  padding: .85rem .7rem;
+}
 .location-tree h2 { margin: 0 .35rem .55rem; }
 .directory-path { margin-bottom: .75rem; overflow-wrap: anywhere; }
 @media (min-width: 801px) {
   .directory-grid { grid-template-columns: minmax(13rem, 22rem) minmax(0, 1fr); }
 }
-.tree-indent { margin-left: .7rem; }
-.location-tree summary { display: flex; align-items: center; gap: .18rem; list-style: none; }
+.location-tree .tree-indent { margin-inline-start: var(--tree-step); }
+.location-tree summary { display: flex; align-items: center; gap: var(--tree-marker-gap); list-style: none; }
 .location-tree summary::-webkit-details-marker { display: none; }
-.location-tree summary::before { content: "▸"; flex: 0 0 .75rem; text-align: center; color: var(--muted); }
+.location-tree summary::before { content: "▸"; flex: 0 0 var(--tree-marker-width); text-align: center; color: var(--muted); }
 .location-tree details[open] > summary::before { content: "▾"; }
 .tree-button {
   display: inline-flex; justify-content: space-between; width: calc(100% - 1rem);
   border-color: transparent; padding: .31rem .4rem; white-space: normal; text-align: left;
   gap: .35rem; font-weight: 500; overflow-wrap: anywhere;
+}
+.location-tree .tree-button.tree-indent {
+  --room-offset: calc(var(--tree-step) + var(--tree-marker-width) + var(--tree-marker-gap));
+  margin-inline-start: var(--room-offset);
+  width: calc(100% - var(--room-offset));
 }
 .tree-button.selected, .segments button[aria-pressed="true"] { background: #eaf1ff; color: #1a4c9c; }
 .tree-button span { color: var(--muted); font-variant-numeric: tabular-nums; }
