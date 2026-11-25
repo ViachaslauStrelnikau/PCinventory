@@ -1,41 +1,46 @@
 import { Component, inject, signal } from '@angular/core';
 import { InventoryData, messageFor } from './core/inventory-data';
+import { ChangePassword } from './change-password';
 
 @Component({
+  imports: [ChangePassword],
   template: `
-    <header class="page-heading"><div><h1>Настройки</h1><p>Управление инвентаризацией</p></div></header>
-    @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
-    @if (notice()) { <p class="notice success" role="status">{{ notice() }}</p> }
-    <section class="panel section settings-section" aria-labelledby="intake-title">
-      <div>
-        <h2 id="intake-title">Приём отчётов</h2>
-        <p class="muted">Разрешить настольным агентам отправлять новые отчёты.</p>
-      </div>
-      @if (enabled() !== null) {
-        <label class="switch-label">
-          <input class="switch" type="checkbox" role="switch" aria-label="Приём отчётов" [checked]="enabled()" [disabled]="busy()" (change)="change($event.target)">
-          {{ enabled() ? 'Включён' : 'Выключен' }}
-        </label>
-      } @else if (busy()) {
-        <span role="status">Загрузка…</span>
-      } @else {
-        <button type="button" (click)="load()">Повторить загрузку</button>
-      }
-    </section>
-    <section class="panel section settings-section" aria-labelledby="backup-title">
-      <div><h2 id="backup-title">Резервное копирование</h2><p class="muted">Создание и восстановление резервных копий появятся в будущем этапе.</p></div>
-      <button type="button" disabled>Создать копию</button>
-    </section>
+    <header class="page-heading"><h1>Настройки</h1></header>
+    <app-change-password />
+    @if (data.admin()) {
+      @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+      @if (notice()) { <p class="notice success" role="status">{{ notice() }}</p> }
+      <section class="panel section settings-section" aria-labelledby="intake-title">
+        <div>
+          <h2 id="intake-title">Приём отчётов</h2>
+          <p class="muted">Разрешить настольным агентам отправлять новые отчёты.</p>
+        </div>
+        @if (enabled() !== null) {
+          <label class="switch-label">
+            <input class="switch" type="checkbox" role="switch" aria-label="Приём отчётов" [checked]="enabled()" [disabled]="busy()" (change)="change($event.target)">
+            {{ enabled() ? 'Включён' : 'Выключен' }}
+          </label>
+        } @else if (busy()) {
+          <span role="status">Загрузка…</span>
+        } @else {
+          <button type="button" (click)="load()">Повторить загрузку</button>
+        }
+      </section>
+      <section class="panel section settings-section" aria-labelledby="backup-title">
+        <div><h2 id="backup-title">Резервное копирование</h2><p class="muted">Создание и восстановление резервных копий появятся в будущем этапе.</p></div>
+        <button type="button" disabled>Создать копию</button>
+      </section>
+    }
   `,
 })
 export class Settings {
-  private readonly data = inject(InventoryData);
+  readonly data = inject(InventoryData);
   readonly enabled = signal<boolean | null>(null);
   readonly busy = signal(false);
   readonly error = signal('');
   readonly notice = signal('');
 
-  constructor() { void this.load(); }
+  constructor() { if (this.data.admin()) void this.load(); }
 
   async load(): Promise<void> {
     this.busy.set(true);

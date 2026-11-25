@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { getApp } from 'firebase/app';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import type { Functions } from 'firebase/functions';
+import { passwordHint } from '../core/password-policy';
 
 export type WebRole = 'ADMIN' | 'USER';
 
@@ -25,7 +26,7 @@ const errorMessages: Record<string, string> = {
   'last-admin': 'Последнего активного администратора нельзя деактивировать или перевести в роль пользователя.',
   'invalid-email': 'Введите действительный адрес электронной почты.',
   'email-in-use': 'Учётная запись с такой почтой уже существует.',
-  'invalid-new-user': 'Пароль должен содержать от 8 до 128 символов.',
+  'invalid-password-policy': passwordHint,
   'invalid-profile': 'Проверьте имя и роль пользователя.',
   'web-user-not-found': 'Учётная запись недоступна. Обновите список.',
   'auth-user-not-found': 'Для этой учётной записи отсутствует запись в Firebase Authentication.',

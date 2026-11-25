@@ -20,7 +20,7 @@ const db = getFirestore();
 const users = db.collection('users');
 const domain = randomUUID() + '.example.test';
 const emailFor = name => name + '@' + domain;
-const password = 'Demo-' + randomUUID();
+const password = 'Demo1-' + randomUUID();
 
 async function request(command, token) {
   const response = await fetch(endpoint, {
@@ -88,6 +88,11 @@ test('server enforces protected web account management and the last active admin
 
   const create = { action: 'create', requestId: randomUUID(), email: emailFor('new'),
     password, displayName: 'Created user', role: 'USER' };
+  for (const weakPassword of ['Aa1shor', 'lowercase123', 'UPPERCASE123', 'WithoutDigits', 'Aa1' + 'b'.repeat(126)]) {
+    const denied = await request({ ...create, password: weakPassword }, admin.token);
+    assert.equal(denied.status, 400);
+    assert.equal(denied.error.message, 'invalid-password-policy');
+  }
   const { uid } = await invoke(create, admin.token);
   assert.equal((await invoke(create, admin.token)).uid, uid);
   assert.equal((await request({ ...create, requestId: randomUUID() }, admin.token)).error.message, 'email-in-use');

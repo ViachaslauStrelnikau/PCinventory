@@ -1,12 +1,14 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { connectAuthEmulator, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { EmailAuthProvider, connectAuthEmulator, initializeAuth, inMemoryPersistence, reauthenticateWithCredential,
+  signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth';
 import type { Auth } from 'firebase/auth';
 import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore,
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
 import type { DocumentData, Firestore } from 'firebase/firestore/lite';
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
+import { meetsPasswordPolicy, passwordHint } from './password-policy';
 
 export const optionalFields = { inventoryNumber: 'Инвентарный №', employeeName: 'ФИО сотрудника',
   department: 'Подразделение', comment: 'Примечание' } as const;
@@ -138,6 +140,39 @@ export class InventoryData {
       if (role === 'ADMIN') void this.refreshReports();
     } catch (error) {
       await signOut(this.auth);
+      throw error;
+    }
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    if (!meetsPasswordPolicy(newPassword)) throw new InventoryError(passwordHint);
+    const { db, session } = this.connection();
+    const user = this.auth?.currentUser;
+    if (!user?.email || user.uid !== session.uid) throw new InventoryError('Войдите в приложение заново.');
+    const access = (await getDoc(doc(db, 'users', session.uid))).data();
+    if (access?.['enabled'] !== true || !['ADMIN', 'USER'].includes(access['role'])) {
+      throw new InventoryError('У этой учётной записи нет доступа к веб-интерфейсу.');
+    }
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        throw new InventoryError('Текущий пароль указан неверно.');
+      }
+      if (code === 'auth/too-many-requests') throw new InventoryError('Слишком много попыток. Попробуйте позже.');
+      throw error;
+    }
+    if (this.auth?.currentUser?.uid !== user.uid || this.session()?.uid !== user.uid) {
+      throw new InventoryError('Войдите в приложение заново.');
+    }
+    try {
+      await updatePassword(user, newPassword);
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'auth/weak-password' || code === 'auth/password-does-not-meet-requirements') {
+        throw new InventoryError('Сервис отклонил новый пароль. Проверьте правила создания пароля.');
+      }
       throw error;
     }
   }

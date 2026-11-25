@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { meetsPasswordPolicy } from './password-policy.mjs';
 
 initializeApp();
 const auth = getAuth();
@@ -74,9 +75,11 @@ async function createUser(actor, data) {
   requireAdmin(await actor.get());
   const profile = validateProfile(data);
   const email = validateEmail(data.email);
-  if (typeof data.requestId !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(data.requestId)
-    || typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128) {
-    throw new HttpsError('invalid-argument', 'invalid-new-user');
+  if (typeof data.requestId !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(data.requestId)) {
+    throw new HttpsError('invalid-argument', 'invalid-action');
+  }
+  if (!meetsPasswordPolicy(data.password)) {
+    throw new HttpsError('invalid-argument', 'invalid-password-policy');
   }
   const uid = 'web-' + data.requestId;
   try {
@@ -135,7 +138,7 @@ const errors = {
   'auth/email-already-exists': ['already-exists', 'email-in-use'],
   'auth/uid-already-exists': ['already-exists', 'user-in-use'],
   'auth/invalid-email': ['invalid-argument', 'invalid-email'],
-  'auth/invalid-password': ['invalid-argument', 'invalid-new-user'],
+  'auth/invalid-password': ['invalid-argument', 'invalid-password-policy'],
   'auth/user-not-found': ['not-found', 'auth-user-not-found'],
 };
 

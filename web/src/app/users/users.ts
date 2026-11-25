@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { InventoryData } from '../core/inventory-data';
+import { meetsPasswordPolicy, passwordHint, passwordMaxLength, passwordMinLength } from '../core/password-policy';
 import { RegistryState, collator } from '../registry/registry-state';
 import { UsersData, usersError, type WebRole, type WebUser } from './users-data';
 
@@ -23,9 +24,13 @@ export class Users {
   readonly error = signal('');
   readonly notice = signal('');
   readonly roleLabels = roleLabels;
+  readonly passwordHint = passwordHint;
+  readonly passwordMinLength = passwordMinLength;
+  readonly passwordMaxLength = passwordMaxLength;
   email = '';
   displayName = '';
   password = '';
+  passwordConfirmation = '';
   role: WebRole = 'USER';
   private requestId = '';
 
@@ -55,6 +60,15 @@ export class Users {
     return admins.length === 1 && admins[0].uid === user.uid;
   }
 
+  get validPasswordPair(): boolean {
+    return meetsPasswordPolicy(this.password) && this.password === this.passwordConfirmation;
+  }
+
+  private clearPasswords(): void {
+    this.password = '';
+    this.passwordConfirmation = '';
+  }
+
   open(mode: 'create' | 'profile' | 'email', user: WebUser | null = null): void {
     this.error.set('');
     this.notice.set('');
@@ -63,7 +77,7 @@ export class Users {
     this.email = user?.email ?? '';
     this.displayName = user?.displayName ?? '';
     this.role = user?.role ?? 'USER';
-    this.password = '';
+    this.clearPasswords();
     this.requestId = mode === 'create' ? crypto.randomUUID() : '';
     this.editor.set(mode);
   }
@@ -72,7 +86,7 @@ export class Users {
     this.editor.set(null);
     this.confirming.set(null);
     this.selected.set(null);
-    this.password = '';
+    this.clearPasswords();
     this.error.set('');
   }
 
@@ -83,6 +97,7 @@ export class Users {
   }
 
   async save(): Promise<void> {
+    if (this.editor() === 'create' && !this.validPasswordPair) return;
     await this.perform(async () => {
       const mode = this.editor();
       const user = this.selected();
@@ -146,7 +161,7 @@ export class Users {
       if ((error as { message?: string } | null)?.message === 'last-admin') await this.load();
       this.error.set(message);
     } finally {
-      this.password = '';
+      this.clearPasswords();
       this.busy.set(false);
     }
   }
