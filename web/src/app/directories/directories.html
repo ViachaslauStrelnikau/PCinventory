@@ -66,14 +66,28 @@
       @if (path.floor) {
         <p class="muted directory-path">{{ path.building }}{{ path.room ? ' / Этаж ' + path.floor : '' }}</p>
       }
-      <div class="actions">
-        <button type="button" (click)="openRename(path)">Переименовать</button>
-        @if (!path.floor) {
-          <button type="button" class="primary" (click)="openCreate('floor', path)">Добавить этаж</button>
-        } @else if (!path.room) {
-          <button type="button" class="primary" (click)="openCreate('room', path)">Добавить кабинет</button>
-        }
-      </div>
+      @if (confirmingDelete()) {
+        <p>Удалить выбранную запись из справочника?</p>
+        <div class="actions editor-actions">
+          <button type="button" (click)="confirmingDelete.set(false)" [disabled]="busy()">Отмена</button>
+          <button type="button" class="danger" (click)="remove(path)"
+            [disabled]="busy() || data.cardsLoading() || !!deleteBlock()">Подтвердить удаление</button>
+        </div>
+      } @else {
+        <div class="actions">
+          <button type="button" (click)="openRename(path)">Переименовать</button>
+          @if (!path.floor) {
+            <button type="button" class="primary" (click)="openCreate('floor', path)">Добавить этаж</button>
+          } @else if (!path.room) {
+            <button type="button" class="primary" (click)="openCreate('room', path)">Добавить кабинет</button>
+          }
+          <button type="button" class="danger-text" (click)="openDelete()"
+            [disabled]="busy() || data.cardsLoading() || !!deleteBlock()">Удалить</button>
+        </div>
+      }
+      @if (deleteBlock()) {
+        <p class="muted editor-actions">{{ deleteBlock() }}</p>
+      }
     </section>
   } @else {
     <p class="panel empty">Выберите запись в дереве для редактирования.</p>

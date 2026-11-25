@@ -107,6 +107,9 @@ async function addLocation(transaction: Transaction, db: Firestore, value: Inven
   const [current, ...aliases] = await Promise.all([
     transaction.get(ref), ...ids.map(id => transaction.get(doc(db, 'locationRenames', id))),
   ]);
+  if (aliases.some(alias => alias.data()?.['kind'] === 'DELETED')) {
+    throw new InventoryError('Расположение удалено. Укажите актуальные здание, этаж и кабинет из справочника.');
+  }
   if (aliases.some(alias => alias.exists())) {
     throw new InventoryError('Расположение переименовано. Укажите актуальные здание, этаж и кабинет из справочника.');
   }

@@ -140,6 +140,7 @@ test('directory edits preserve branches, cards and original reports', { timeout:
   const room = { ...floor, room: '010' };
   const create = path => ({ action: 'create', path });
   const rename = (path, name) => ({ action: 'rename', path, name });
+  const remove = path => ({ action: 'delete', path });
   const call = (command, token = admin.token) => request(command, token, 'manageLocations');
   const save = async command => {
     const reply = await call(command);
@@ -152,6 +153,10 @@ test('directory edits preserve branches, cards and original reports', { timeout:
   await save(create(building));
   await save(create(floor));
   await save(create(room));
+  assert.equal((await call(remove(building))).error.message, 'location-has-children');
+  assert.equal((await call(remove(floor))).error.message, 'location-has-children');
+  assert.equal((await call(remove(room), reader.token)).status, 403);
+  assert.equal((await call(remove(room), collector.token)).status, 403);
   assert.equal((await call(create(room))).status, 409);
   assert.equal((await call(rename(floor, ''))).status, 400);
   await save(create({ ...floor, floor: '04' }));
@@ -165,6 +170,7 @@ test('directory edits preserve branches, cards and original reports', { timeout:
     archived.create({ ...room, status: 'RETIRED' }),
     report.create({ assignment: room }),
   ]);
+  assert.equal((await call(remove(room))).error.message, 'location-in-use');
   const floors = await save(rename(floor, '02'));
   assert.equal(floors.updatedCards, 2);
   assert.equal((await card.get()).get('floor'), '02');
@@ -184,4 +190,25 @@ test('directory edits preserve branches, cards and original reports', { timeout:
   assert((await db.collection('locationRenames').doc(await locationId({ ...nextFloor, floor: '03' })).get()).exists);
   await save(create(before));
   assert(!(await db.collection('locationRenames').doc(await locationId(before)).get()).exists);
+  await card.delete();
+  assert.equal((await call(remove(after))).error.message, 'location-in-use');
+  await save(remove(before));
+  const removed = db.collection('locations').doc(await locationId(before));
+  const marker = db.collection('locationRenames').doc(removed.id);
+  assert(!(await removed.get()).exists);
+  assert.equal((await marker.get()).get('kind'), 'DELETED');
+  assert.deepEqual((await report.get()).get('assignment'), room);
+  await save(create(before));
+  assert((await removed.get()).exists);
+  assert(!(await marker.get()).exists);
+
+  const implicitRoom = { building: 'Корпус с одним кабинетом', floor: '1', room: '009' };
+  await db.collection('locations').doc(await locationId(implicitRoom)).create(implicitRoom);
+  await save(remove(implicitRoom));
+  const implicitFloor = { ...implicitRoom, room: '' };
+  const implicitBuilding = { ...implicitFloor, floor: '' };
+  assert((await db.collection('locations').doc(await locationId(implicitFloor)).get()).exists);
+  assert((await db.collection('locations').doc(await locationId(implicitBuilding)).get()).exists);
+  await save(remove(implicitFloor));
+  await save(remove(implicitBuilding));
 });

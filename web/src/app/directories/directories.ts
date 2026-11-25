@@ -9,12 +9,15 @@ const empty: InventoryLocation = { building: '', floor: '', room: '' };
 const labels = { building: 'Здание', floor: 'Этаж', room: 'Кабинет' } as const;
 type Level = keyof typeof labels;
 type Editor = { action: 'create' | 'rename'; level: Level; path: InventoryLocation };
-type Command = { action: 'create'; path: InventoryLocation } | { action: 'rename'; path: InventoryLocation; name: string };
+type Command = { action: 'create' | 'delete'; path: InventoryLocation }
+  | { action: 'rename'; path: InventoryLocation; name: string };
 
 const errors: Record<string, string> = {
   'invalid-location': 'Проверьте название или номер.',
   'location-exists': 'В этой ветке уже есть запись с таким названием или номером.',
   'location-missing': 'Эта запись изменилась. Обновите справочник.',
+  'location-in-use': 'Расположение используется в карточках ПК, включая архив.',
+  'location-has-children': 'Сначала удалите вложенные записи этого расположения.',
   'parent-location-missing': 'Родительская запись изменилась. Обновите справочник.',
   'concurrent-update': 'Справочник изменился в другой вкладке. Обновите его и повторите действие.',
   'rename-limit': 'Не удалось обновить всю ветку в одной транзакции.',
@@ -29,10 +32,26 @@ export class Directories {
   readonly tree = computed(() => locationTree(this.data.cards(), this.data.locations()));
   readonly selected = signal<InventoryLocation | null>(null);
   readonly editor = signal<Editor | null>(null);
+  readonly confirmingDelete = signal(false);
   readonly busy = signal(false);
   readonly notice = signal('');
   readonly error = signal('');
   readonly labels = labels;
+  readonly deleteBlock = computed(() => {
+    const selected = this.selected();
+    if (!selected) return '';
+    if (this.data.locationsError() || this.data.cardsError()) return 'Обновите справочник перед удалением.';
+    const building = this.tree().find(node => node.name === selected.building);
+    const floor = building?.floors.find(node => node.name === selected.floor);
+    const room = floor?.rooms.find(node => node.name === selected.room);
+    const node = selected.room ? room : selected.floor ? floor : building;
+    if (!node) return errors['location-missing'];
+    if (node.count) return errors['location-in-use'];
+    if (!selected.floor && building?.floors.length || !selected.room && floor?.rooms.length) {
+      return errors['location-has-children'];
+    }
+    return '';
+  });
   draft = '';
 
   constructor() { void this.data.refreshCards(); }
@@ -45,6 +64,7 @@ export class Directories {
   select(building: string, floor = '', room = ''): void {
     this.selected.set({ building, floor, room });
     this.editor.set(null);
+    this.confirmingDelete.set(false);
     this.error.set('');
   }
 
@@ -60,6 +80,7 @@ export class Directories {
   private open(editor: Editor, draft: string): void {
     this.notice.set('');
     this.error.set('');
+    this.confirmingDelete.set(false);
     this.draft = draft;
     this.editor.set(editor);
   }
@@ -71,11 +92,7 @@ export class Directories {
     const { action, level, path } = editor;
     const resultPath = { ...path, [level]: name };
     const command: Command = action === 'rename' ? { action, path, name } : { action, path: resultPath };
-    this.busy.set(true);
-    this.error.set('');
-    this.notice.set('');
-    try {
-      const result = await this.functions.invoke<Command, { updatedCards: number }>('manageLocations', command);
+    await this.perform(command, result => {
       if (action === 'rename') {
         const selection = this.registry.place();
         if (selection?.building === path.building && (!path.floor || selection.floor === path.floor)
@@ -83,12 +100,51 @@ export class Directories {
           this.registry.setPlace({ ...selection, [level]: name });
         }
       }
-      await this.data.refreshCards();
       this.select(resultPath.building, resultPath.floor, resultPath.room);
       this.notice.set(action === 'create' ? 'Запись добавлена.' : 'Название обновлено. Карточек обновлено: ' + result.updatedCards + '.');
+    });
+  }
+
+  openDelete(): void {
+    this.notice.set('');
+    this.error.set('');
+    this.confirmingDelete.set(true);
+  }
+
+  async remove(path: InventoryLocation): Promise<void> {
+    if (!this.confirmingDelete() || this.deleteBlock() || this.data.cardsLoading()) return;
+    await this.perform({ action: 'delete', path }, () => {
+      const place = this.registry.place();
+      if (place?.building === path.building && (!path.floor || place.floor === path.floor)
+          && (!path.room || place.room === path.room)) {
+        this.registry.setPlace(path.room ? { building: path.building, floor: path.floor }
+          : path.floor ? { building: path.building } : null);
+      }
+      if (path.room) this.select(path.building, path.floor);
+      else if (path.floor) this.select(path.building);
+      else {
+        this.selected.set(null);
+        this.confirmingDelete.set(false);
+      }
+      this.notice.set('Запись удалена.');
+    });
+  }
+
+  private async perform(command: Command, complete: (result: { updatedCards: number }) => void): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.notice.set('');
+    try {
+      const result = await this.functions.invoke<Command, { updatedCards: number }>('manageLocations', command);
+      await this.data.refreshCards();
+      complete(result);
     } catch (error) {
       const message = (error as { message?: string } | null)?.message;
       this.error.set(message && Object.hasOwn(errors, message) ? errors[message] : 'Не удалось сохранить справочник. Попробуйте ещё раз.');
+      if (message === 'location-in-use' || message === 'location-has-children' || message === 'location-missing') {
+        await this.data.refreshCards();
+      }
     } finally {
       this.busy.set(false);
     }

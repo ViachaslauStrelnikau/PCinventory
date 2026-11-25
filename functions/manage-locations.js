@@ -56,8 +56,9 @@ async function renameLocation(transaction, collections, source, destination, uid
   }
   const movedNames = new Map();
   for (const item of oldNames.docs) {
-    const path = replace(item.data());
-    movedNames.set(await locationId(path), path);
+    const stored = item.data();
+    const path = replace(stored);
+    movedNames.set(await locationId(path), stored.kind === 'DELETED' ? { ...path, kind: stored.kind } : path);
   }
   // A deliberately restored name takes precedence over an old marker.
   movedNames.delete(destinationId);
@@ -74,13 +75,38 @@ async function renameLocation(transaction, collections, source, destination, uid
   return { updatedCards: cards.size };
 }
 
+async function deleteLocation(transaction, { directories, renames, computers }, path) {
+  const parents = locationParents(path);
+  const ids = await Promise.all(parents.map(locationId));
+  const id = ids.pop();
+  const [current, children, cards, ...ancestors] = await Promise.all([
+    transaction.get(directories.doc(id)), transaction.get(under(directories, path).limit(2)),
+    transaction.get(under(computers, path).limit(1)),
+    ...ids.map(parent => transaction.get(directories.doc(parent))),
+  ]);
+  if (!cards.empty) throw new HttpsError('failed-precondition', 'location-in-use');
+  if (children.docs.some(child => child.id !== id)) {
+    throw new HttpsError('failed-precondition', 'location-has-children');
+  }
+  if (!current.exists) throw new HttpsError('not-found', 'location-missing');
+
+  // A parent previously inferred from its last child becomes an explicit entry.
+  ancestors.forEach((ancestor, index) => {
+    if (!ancestor.exists) transaction.create(ancestor.ref, parents[index]);
+  });
+  transaction.delete(current.ref);
+  transaction.set(renames.doc(id), { ...path, kind: 'DELETED' });
+}
+
 export const manageLocations = onCall(async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'sign-in-required');
   const db = getFirestore();
   const uid = request.auth.uid;
   const actor = db.collection('users').doc(uid);
   const action = request.data?.action;
-  if (action !== 'create' && action !== 'rename') throw new HttpsError('invalid-argument', 'invalid-location');
+  if (action !== 'create' && action !== 'rename' && action !== 'delete') {
+    throw new HttpsError('invalid-argument', 'invalid-location');
+  }
   const source = pathOf(request.data?.path, action === 'create');
   const key = source.room ? 'room' : source.floor ? 'floor' : 'building';
   const name = typeof request.data?.name === 'string' ? request.data.name.trim() : '';
@@ -93,8 +119,12 @@ export const manageLocations = onCall(async request => {
       if (profile?.role !== 'ADMIN' || profile.enabled !== true) {
         throw new HttpsError('permission-denied', 'admin-required');
       }
-      if (!destination) {
+      if (action === 'create') {
         await writeLocation(transaction, collections.directories, collections.renames, source);
+        return { updatedCards: 0 };
+      }
+      if (action === 'delete') {
+        await deleteLocation(transaction, collections, source);
         return { updatedCards: 0 };
       }
       if (source[key] === destination[key]) return { updatedCards: 0 };
