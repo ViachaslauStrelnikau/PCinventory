@@ -11,6 +11,7 @@
         }
         <a routerLink="/statistics" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark bars"></span>Статистика</a>
         @if (data.admin()) {
+          <a routerLink="/users" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark people"></span>Пользователи</a>
           <a routerLink="/settings" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark gear"></span>Настройки</a>
         }
       </nav>

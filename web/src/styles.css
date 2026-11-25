@@ -80,6 +80,8 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
   linear-gradient(currentColor, currentColor) center bottom / 2px 66% no-repeat,
   linear-gradient(currentColor, currentColor) right bottom / 2px 100% no-repeat; }
 .gear { width: 12px; height: 12px; border: 3px dotted currentColor; border-radius: 50%; }
+.people::before { content: ""; position: absolute; inset: 0 4px 7px; border: 1px solid currentColor; border-radius: 50%; }
+.people::after { content: ""; position: absolute; inset: 6px 0 0; border: 1px solid currentColor; border-radius: 5px 5px 2px 2px; }
 .nav-count { margin-left: auto; border-radius: 12px; background: #eaf0fa; color: var(--navy); padding: 0 .43rem; font-size: .82rem; }
 .account { margin-top: auto; padding: 1rem .65rem 0; border-top: 1px solid var(--line); display: grid; gap: .22rem; }
 .account .muted { overflow: hidden; text-overflow: ellipsis; }

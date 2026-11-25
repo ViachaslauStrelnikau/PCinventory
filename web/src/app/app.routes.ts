@@ -22,6 +22,8 @@ export const routes: Routes = [
     loadComponent: () => import('./reports/reports').then(module => module.Reports) },
   { path: 'statistics', title: 'Статистика · Computer Inventory', canActivate: [signedIn],
     loadComponent: () => import('./statistics').then(module => module.Statistics) },
+  { path: 'users', title: 'Пользователи · Computer Inventory', canActivate: [admin],
+    loadComponent: () => import('./users/users').then(module => module.Users) },
   { path: 'settings', title: 'Настройки · Computer Inventory', canActivate: [admin],
     loadComponent: () => import('./settings').then(module => module.Settings) },
   { path: '', pathMatch: 'full', redirectTo: 'computers' },

@@ -45,12 +45,13 @@ npm --prefix web start
 Сначала соберите веб-приложение. Для Emulator Suite установите JDK 21 или новее и укажите его в `JAVA_HOME` и `PATH`. Запустите из корня:
 
 ```powershell
-npx --yes firebase-tools@15.37.0 emulators:start --only auth,firestore,hosting --project demo-pcinventory
+npm --prefix functions ci
+npx --yes firebase-tools@15.37.0 emulators:start --only auth,firestore,functions,hosting --project demo-pcinventory
 ```
 
 Hosting доступен по адресу `http://127.0.0.1:5000`, панель эмуляторов — `http://127.0.0.1:4000`. Проект с префиксом `demo-` используется локально.
 
-Для входа в веб-приложение создайте временную учётную запись с почтой и паролем в Auth Emulator. Добавьте в Firestore Emulator документ `users/{uid}`, где `uid` скопирован из Auth, с полями `role: "ADMIN"` или `role: "USER"` и логическим полем `enabled: true`. С ролью администратора можно открыть настройки, включить приём отчётов и проверить входящие данные. Обе роли могут открывать реестр и статистику и выгружать выборку в Excel. При перезагрузке страницы потребуется снова войти.
+Для первого администратора создайте временную учётную запись с почтой и паролем в Auth Emulator. Добавьте в Firestore Emulator документ `users/{uid}`, где `uid` скопирован из Auth, с полями `role: "ADMIN"` и `enabled: true`. Остальные веб-учётные записи создаются в разделе «Пользователи». При создании администратор задаёт начальный пароль. Там же можно изменить имя, почту и роль, деактивировать учётную запись или восстановить её доступ. При перезагрузке страницы потребуется снова войти.
 
 Для автоматической проверки ролей и принятия отчётов выполните из корня репозитория.
 
@@ -60,6 +61,12 @@ npm --prefix tests/rules test
 ```
 
 Тесты запускают Auth и Firestore Emulator и создают синтетические записи. Для проверки Java-клиента с эмулятором выполните `npm --prefix tests/rules run test:agent` с Maven и JDK на `PATH`. [Правила доступа и проверка](docs/SECURITY.md)
+
+Для проверки управления пользователями запустите тест в чистом экземпляре эмуляторов. Остановите текущий экземпляр или выделите для теста отдельные порты.
+
+```powershell
+npx --yes firebase-tools@15.37.0 emulators:exec --project demo-pcinventory --only auth,firestore,functions "npm --prefix functions test"
+```
 
 ### Регистрация из окна агента
 
