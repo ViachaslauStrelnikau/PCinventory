@@ -9,7 +9,19 @@ export async function locationId({ building, floor, room }) {
 }
 
 export function validLocation(value) {
-  return value !== null && typeof value === 'object'
-    && [[value.building, 256], [value.floor, 64], [value.room, 64]]
-      .every(([text, max]) => typeof text === 'string' && /[^\s\p{Z}\u0085\ufeff]/u.test(text) && text.length <= max);
+  return validDirectoryLocation(value) && value.floor !== '' && value.room !== '';
+}
+
+const validName = (value, max) => typeof value === 'string' && value.length <= max && /[^\s\p{Z}\u0085\ufeff]/u.test(value);
+
+export function validDirectoryLocation(value) {
+  return value !== null && typeof value === 'object' && validName(value.building, 256)
+    && (value.floor === '' ? value.room === '' : validName(value.floor, 64) && (value.room === '' || validName(value.room, 64)));
+}
+
+export function locationParents(value) {
+  const parents = [{ building: value.building, floor: '', room: '' }];
+  if (value.floor !== '') parents.push({ building: value.building, floor: value.floor, room: '' });
+  if (value.room !== '') parents.push(locationFields(value));
+  return parents;
 }

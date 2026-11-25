@@ -1,7 +1,5 @@
-import { Injectable } from '@angular/core';
-import { getApp } from 'firebase/app';
-import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
-import type { Functions } from 'firebase/functions';
+import { Injectable, inject } from '@angular/core';
+import { LocalFunctions } from '../core/local-functions';
 import { passwordHint } from '../core/password-policy';
 
 export type WebRole = 'ADMIN' | 'USER';
@@ -47,15 +45,10 @@ export function usersError(error: unknown): string {
 
 @Injectable({ providedIn: 'root' })
 export class UsersData {
-  private readonly endpoint: Functions;
+  private readonly functions = inject(LocalFunctions);
 
-  constructor() {
-    this.endpoint = getFunctions(getApp());
-    connectFunctionsEmulator(this.endpoint, '127.0.0.1', 5001);
-  }
-
-  private async invoke<T>(command: Command): Promise<T> {
-    return (await httpsCallable<Command, T>(this.endpoint, 'manageWebUsers')(command)).data;
+  private invoke<T>(command: Command): Promise<T> {
+    return this.functions.invoke<Command, T>('manageWebUsers', command);
   }
 
   list(): Promise<WebUser[]> { return this.invoke({ action: 'list' }); }

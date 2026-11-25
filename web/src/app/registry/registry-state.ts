@@ -91,14 +91,15 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
     && (!place.room || card.room === place.room);
 }
 
-function locationTree(cards: readonly ComputerDocument[], locations: readonly InventoryLocation[]) {
+export function locationTree(cards: readonly ComputerDocument[], locations: readonly InventoryLocation[]) {
   const buildings = new Map<string, Map<string, Map<string, number>>>();
   function add({ building, floor, room }: InventoryLocation, count: number): void {
     if (!buildings.has(building)) buildings.set(building, new Map());
     const floors = buildings.get(building)!;
+    if (!floor) return;
     if (!floors.has(floor)) floors.set(floor, new Map());
     const rooms = floors.get(floor)!;
-    rooms.set(room, (rooms.get(room) ?? 0) + count);
+    if (room) rooms.set(room, (rooms.get(room) ?? 0) + count);
   }
   for (const location of locations) add(location, 0);
   for (const card of cards) add(card, 1);

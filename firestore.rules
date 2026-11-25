@@ -286,6 +286,10 @@ service cloud.firestore {
         && validLocation(request.resource.data);
     }
 
+    match /locationRenames/{id} {
+      allow get: if hasEnabledRole('ADMIN');
+    }
+
     match /settings/inventory {
       allow get: if hasEnabledRole('ADMIN');
       allow create, update: if hasEnabledRole('ADMIN')

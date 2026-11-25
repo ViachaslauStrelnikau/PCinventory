@@ -101,6 +101,11 @@ test('collector can read only the confirmed location directory', async () => {
   await assertFails(getDocsFromServer(collection(collector, 'inventoryReports')));
   await assertFails(updateDoc(doc(admin, path), { room: '011' }));
   await assertFails(deleteDoc(doc(admin, path)));
+  const previousName = 'locationRenames/' + await locationId(location);
+  await seed({ [previousName]: location });
+  await assertSucceeds(getDocFromServer(doc(admin, previousName)));
+  await assertFails(getDocFromServer(doc(collector, previousName)));
+  await assertFails(deleteDoc(doc(admin, previousName)));
 });
 
 function submission(reportId = firstId, uid = collectorId) {

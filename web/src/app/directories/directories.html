@@ -1,0 +1,81 @@
+<header class="page-heading">
+  <div><h1>Справочники</h1><p>Здания, этажи и кабинеты</p></div>
+  <div class="actions">
+    <button type="button" (click)="data.refreshCards()" [disabled]="busy() || data.cardsLoading()">Обновить</button>
+    <button type="button" class="primary" (click)="openCreate('building')" [disabled]="busy()">Добавить здание</button>
+  </div>
+</header>
+@if (data.locationsError() || data.cardsError()) { <p class="notice error" role="alert">{{ data.locationsError() || data.cardsError() }}</p> }
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (notice()) { <p class="notice success" role="status">{{ notice() }}</p> }
+<div class="registry-grid directory-grid">
+  <section class="panel location-tree" aria-label="Дерево расположений">
+    <h2>Расположение</h2>
+    @if (data.cardsLoading() && !tree().length) { <p role="status">Загрузка…</p> }
+    @for (building of tree(); track building.name) {
+      <details #buildingNode open>
+        <summary>
+          <button type="button" class="tree-button" [class.selected]="matches(building.name)"
+            [attr.aria-pressed]="matches(building.name)" [disabled]="busy()"
+            (click)="select(building.name); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+        </summary>
+        @for (floor of building.floors; track floor.name) {
+          <details #floorNode class="tree-indent" open>
+            <summary>
+              <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name)"
+                [attr.aria-pressed]="matches(building.name, floor.name)" [disabled]="busy()"
+                (click)="select(building.name, floor.name); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+            </summary>
+            @for (room of floor.rooms; track room.name) {
+              <button type="button" class="tree-button tree-indent" [class.selected]="matches(building.name, floor.name, room.name)"
+                [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
+                (click)="select(building.name, floor.name, room.name)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+            }
+          </details>
+        }
+      </details>
+    } @empty {
+      @if (!data.cardsLoading() && !data.locationsError() && !data.cardsError()) { <p class="muted">Зданий пока нет.</p> }
+    }
+  </section>
+
+  @if (editor(); as edit) {
+    <form class="panel editor" (ngSubmit)="save()">
+      <fieldset [disabled]="busy()">
+        <h2>{{ edit.action === 'rename' ? 'Переименование' : 'Новая запись' }}</h2>
+        @if (edit.path.building) {
+          <p class="muted directory-path">{{ edit.path.building }}{{ edit.path.floor ? ' / ' + edit.path.floor : '' }}{{ edit.path.room ? ' / ' + edit.path.room : '' }}</p>
+        }
+        <div class="form-grid">
+          <label>{{ labels[edit.level] }}
+            <input name="locationName" [(ngModel)]="draft" required [maxlength]="edit.level === 'building' ? 256 : 64">
+          </label>
+        </div>
+        @if (edit.action === 'rename') {
+          <p class="muted editor-actions">Новое название появится во всех связанных карточках ПК.</p>
+        }
+        <div class="actions editor-actions">
+          <button type="submit" class="primary" [disabled]="!draft.trim() || busy()">{{ busy() ? 'Сохранение…' : 'Сохранить' }}</button>
+          <button type="button" (click)="editor.set(null)">Отмена</button>
+        </div>
+      </fieldset>
+    </form>
+  } @else if (selected(); as path) {
+    <section class="panel section">
+      <h2>{{ path.room ? 'Кабинет ' + path.room : path.floor ? 'Этаж ' + path.floor : path.building }}</h2>
+      @if (path.floor) {
+        <p class="muted directory-path">{{ path.building }}{{ path.room ? ' / Этаж ' + path.floor : '' }}</p>
+      }
+      <div class="actions">
+        <button type="button" (click)="openRename(path)">Переименовать</button>
+        @if (!path.floor) {
+          <button type="button" class="primary" (click)="openCreate('floor', path)">Добавить этаж</button>
+        } @else if (!path.room) {
+          <button type="button" class="primary" (click)="openCreate('room', path)">Добавить кабинет</button>
+        }
+      </div>
+    </section>
+  } @else {
+    <p class="panel empty">Выберите запись в дереве для редактирования.</p>
+  }
+</div>

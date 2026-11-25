@@ -5,8 +5,9 @@ import { EmailAuthProvider, connectAuthEmulator, initializeAuth, inMemoryPersist
 import type { Auth } from 'firebase/auth';
 import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore,
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
-import type { DocumentData, DocumentReference, Firestore, Transaction } from 'firebase/firestore/lite';
-import { locationFields, locationId, validLocation, type InventoryLocation } from '../../../../functions/location-directory.mjs';
+import type { DocumentData, Firestore, Transaction } from 'firebase/firestore/lite';
+import { locationFields, locationId, locationParents, validDirectoryLocation,
+  type InventoryLocation } from '../../../../functions/location-directory.mjs';
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
 import { meetsPasswordPolicy, passwordHint } from './password-policy';
@@ -100,8 +101,16 @@ function requiredAssignment(value: Assignment, defaults?: Required<Assignment>):
     comment: value.comment ?? defaults?.comment ?? '' };
 }
 
-async function addLocation(transaction: Transaction, ref: DocumentReference, value: InventoryLocation): Promise<void> {
-  const stored = (await transaction.get(ref)).data();
+async function addLocation(transaction: Transaction, db: Firestore, value: InventoryLocation): Promise<void> {
+  const ids = await Promise.all(locationParents(value).map(locationId));
+  const ref = doc(db, 'locations', ids.at(-1)!);
+  const [current, ...aliases] = await Promise.all([
+    transaction.get(ref), ...ids.map(id => transaction.get(doc(db, 'locationRenames', id))),
+  ]);
+  if (aliases.some(alias => alias.exists())) {
+    throw new InventoryError('Расположение переименовано. Укажите актуальные здание, этаж и кабинет из справочника.');
+  }
+  const stored = current.data();
   if (!stored) transaction.set(ref, locationFields(value));
   else if (stored['building'] !== value.building || stored['floor'] !== value.floor || stored['room'] !== value.room) {
     throw new InventoryError('Не удалось сверить запись в справочнике расположений.');
@@ -235,7 +244,7 @@ export class InventoryData {
       });
       if (request !== this.cardsRequest) return;
       this.cards.set(records);
-      this.locations.set(directory?.docs.map(item => item.data()).filter(validLocation).map(locationFields) ?? []);
+      this.locations.set(directory?.docs.map(item => item.data()).filter(validDirectoryLocation).map(locationFields) ?? []);
       if (!directory) this.locationsError.set('Не удалось загрузить справочник расположений.');
       this.cardsLoaded.set(true);
     } catch (error) {
@@ -295,12 +304,11 @@ export class InventoryData {
     const card = readComputer({ ...entry.hardware, ...requiredAssignment(entry.assignment), deviceId: id,
       identitySource: 'MANUAL', agentVersion: 'manual', status: 'ACTIVE', lastReportId: null, lastInventoryAt: null,
       assignmentUpdatedAt: packTime(Timestamp.now()), assignmentUpdatedBy: session.uid });
-    const locationRef = doc(db, 'locations', await locationId(card));
     // The transaction makes a UUID collision a failure rather than an overwrite.
     await runTransaction(db, async transaction => {
       const ref = doc(db, 'computers', id);
       if ((await transaction.get(ref)).exists()) throw new InventoryError('Идентификатор занят. Повторите сохранение.');
-      await addLocation(transaction, locationRef, card);
+      await addLocation(transaction, db, card);
       transaction.set(ref, { ...card, assignmentUpdatedAt: serverTimestamp() });
     });
     await this.refreshCards();
@@ -310,12 +318,11 @@ export class InventoryData {
   async editCard(seen: ComputerDocument, entry: Entry): Promise<void> {
     const { db, session } = this.adminConnection();
     const ref = doc(db, 'computers', seen.deviceId);
-    const locationRef = doc(db, 'locations', await locationId(entry.assignment));
     await runTransaction(db, async transaction => {
       sameVersion(decode((await transaction.get(ref)).data()), seen);
       const updates = { ...entry.hardware, ...requiredAssignment(entry.assignment) };
       readComputer({ ...seen, ...updates });
-      await addLocation(transaction, locationRef, entry.assignment);
+      await addLocation(transaction, db, entry.assignment);
       transaction.update(ref, { ...updates, assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: session.uid });
     });
     await this.refreshCards();
@@ -359,17 +366,16 @@ export class InventoryData {
       status: 'ACCEPTED' | 'REJECTED'): Promise<void> {
     const { db, session } = this.adminConnection();
     const location = effective(seen).assignment;
-    const locationRef = status === 'ACCEPTED' ? doc(db, 'locations', await locationId(location)) : null;
     await runTransaction(db, async transaction => {
       const ref = doc(db, 'inventoryReports', seen.reportId);
       sameVersion(decode((await transaction.get(ref)).data()), seen);
       if (seen.status !== 'PENDING') throw new InventoryError('Отчёт уже обработан.');
-      if (locationRef) {
+      if (status === 'ACCEPTED') {
         const cardRef = doc(db, 'computers', seen.deviceId);
         const snapshot = await transaction.get(cardRef);
         sameVersion(snapshot.exists() ? decode(snapshot.data()) : null, seenCard);
         if (isStale(seen, seenCard)) throw new InventoryError('Отчёт устарел. Его можно отклонить.');
-        await addLocation(transaction, locationRef, location);
+        await addLocation(transaction, db, location);
         transaction.set(cardRef, this.acceptedCard(seen, seenCard, selected, session.uid));
       }
       transaction.update(ref, { status, reviewedAt: serverTimestamp(), reviewedBy: session.uid });
