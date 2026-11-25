@@ -1,7 +1,8 @@
 package com.pcinventory.agent.app;
 
 import com.pcinventory.agent.collector.RuntimeProbe;
-import com.pcinventory.agent.collector.WindowsHardwareProbe;
+import com.pcinventory.agent.collector.HardwareSource;
+import com.pcinventory.agent.collector.WindowsHardwareSource;
 import com.pcinventory.agent.ui.InventoryWindow;
 
 import javax.swing.SwingUtilities;
@@ -17,8 +18,9 @@ public final class InventoryAgent {
             System.out.println(RuntimeProbe.read());
             return;
         }
+        HardwareSource hardware = new WindowsHardwareSource();
         if (args.length == 1 && "--hardware-probe".equals(args[0])) {
-            WindowsHardwareProbe.read().diagnosticLines().forEach(System.out::println);
+            hardware.read().diagnosticLines().forEach(System.out::println);
             return;
         }
 
@@ -29,7 +31,7 @@ public final class InventoryAgent {
             } catch (ReflectiveOperationException | UnsupportedLookAndFeelException exception) {
                 // Keep the default Swing look and feel if the system theme is unavailable.
             }
-            new InventoryWindow(preview).setVisible(true);
+            new InventoryWindow(hardware, preview).setVisible(true);
         });
     }
 }

@@ -1,0 +1,87 @@
+[
+  {
+    "deviceId": "smbios-6c021ce0-b1a0-4680-8780-f210f00f0001",
+    "identitySource": "SMBIOS",
+    "hostname": "TEST-DESKTOP-01",
+    "cpuModelRaw": "Intel(R) Core(TM) i7-12700K @ 3.60 GHz",
+    "cpuModel": "Intel Core i7-12700K",
+    "cpuCores": 12,
+    "cpuThreads": 20,
+    "gpus": [
+      {"model": "Test GPU A", "manufacturer": null, "vramBytes": null},
+      {"model": "Test GPU B", "manufacturer": null, "vramBytes": null}
+    ],
+    "ramTotalBytes": 17179869184,
+    "ramTotalGiB": 16,
+    "ramType": "DDR4",
+    "ramSlotsTotal": 4,
+    "ramSlotsUsed": 2,
+    "ramSlotsFree": 2,
+    "ramSlotTopology": "COMPLETE",
+    "ramSlots": [
+      {"slotId": "DIMM A1", "bankLabel": "BANK 0", "occupied": false, "capacityBytes": null, "memoryType": null, "speedMtps": null, "configuredSpeedMtps": null, "manufacturer": null, "partNumber": null, "formFactor": null},
+      {"slotId": "DIMM A2", "bankLabel": "BANK 1", "occupied": true, "capacityBytes": 8589934592, "memoryType": "DDR4", "speedMtps": 3600, "configuredSpeedMtps": 3200, "manufacturer": null, "partNumber": null, "formFactor": "DIMM"},
+      {"slotId": "DIMM B1", "bankLabel": "BANK 2", "occupied": false, "capacityBytes": null, "memoryType": null, "speedMtps": null, "configuredSpeedMtps": null, "manufacturer": null, "partNumber": null, "formFactor": null},
+      {"slotId": "DIMM B2", "bankLabel": "BANK 3", "occupied": true, "capacityBytes": 8589934592, "memoryType": "DDR4", "speedMtps": 3600, "configuredSpeedMtps": 3200, "manufacturer": null, "partNumber": null, "formFactor": "DIMM"}
+    ],
+    "disks": [
+      {"model": "Test Drive 1", "type": "SSD", "capacityBytes": 500000000000, "interface": "NVMe"},
+      {"model": "Test Drive 2", "type": "HDD", "capacityBytes": 1000000000000, "interface": "SATA"}
+    ],
+    "hasSsd": true,
+    "networkMode": "MIXED",
+    "staticIpv4": [
+      "192.0.2.105"
+    ],
+    "networks": [
+      {"name": "Ethernet 1", "mode": "STATIC", "staticIpv4": ["192.0.2.105"]},
+      {"name": "Ethernet 2", "mode": "DHCP", "staticIpv4": []}
+    ],
+    "warnings": [],
+    "assignment": {
+      "inventoryNumber": "000123",
+      "floor": "2",
+      "room": "205"
+    }
+  },
+  {
+    "deviceId": "local-6c021ce0-b1a0-4680-8780-f210f00f0002",
+    "identitySource": "LOCAL",
+    "hostname": "TEST-LEGACY-01",
+    "cpuModelRaw": "Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz",
+    "cpuModel": "Intel Core i5-3470 CPU",
+    "cpuCores": 4,
+    "cpuThreads": 4,
+    "gpus": [
+      {"model": "Test VGA Adapter", "manufacturer": null, "vramBytes": null}
+    ],
+    "ramTotalBytes": 4294967296,
+    "ramTotalGiB": 4,
+    "ramType": "UNKNOWN",
+    "ramSlotsTotal": 2,
+    "ramSlotsUsed": 1,
+    "ramSlotsFree": null,
+    "ramSlotTopology": "PARTIAL",
+    "ramSlots": [
+      {"slotId": null, "bankLabel": null, "occupied": true, "capacityBytes": 4294967296, "memoryType": null, "speedMtps": null, "configuredSpeedMtps": null, "manufacturer": null, "partNumber": null, "formFactor": null}
+    ],
+    "disks": [
+      {"model": "Test Drive 3", "type": "UNKNOWN", "capacityBytes": 250000000000, "interface": "SCSI"}
+    ],
+    "hasSsd": null,
+    "networkMode": "DHCP",
+    "staticIpv4": [],
+    "networks": [
+      {"name": "Ethernet", "mode": "DHCP", "staticIpv4": []}
+    ],
+    "warnings": [
+      "Используется идентификатор профиля Windows",
+      "Число свободных разъёмов ОЗУ определить не удалось",
+      "Тип одного или нескольких накопителей недоступен"
+    ],
+    "assignment": {
+      "floor": "1",
+      "room": "010"
+    }
+  }
+]

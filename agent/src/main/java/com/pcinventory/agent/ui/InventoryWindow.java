@@ -1,6 +1,7 @@
 package com.pcinventory.agent.ui;
 
-import com.pcinventory.agent.collector.WindowsHardwareProbe;
+import com.pcinventory.agent.collector.HardwareSnapshot;
+import com.pcinventory.agent.collector.HardwareSource;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 public final class InventoryWindow extends JFrame {
     private final HardwarePanel hardware = new HardwarePanel();
+    private final HardwareSource hardwareSource;
     private final JButton read = new JButton("Прочитать конфигурацию");
     private final JLabel status = new JLabel("Ожидание чтения конфигурации");
     private final ReadingSpinner spinner = new ReadingSpinner();
@@ -41,8 +43,9 @@ public final class InventoryWindow extends JFrame {
     });
     private final boolean preview;
 
-    public InventoryWindow(boolean preview) {
+    public InventoryWindow(HardwareSource hardwareSource, boolean preview) {
         super("Computer Inventory — Регистрация компьютера");
+        this.hardwareSource = hardwareSource;
         this.preview = preview;
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -191,16 +194,16 @@ public final class InventoryWindow extends JFrame {
         showStatus("Чтение конфигурации компьютера…", false);
         status.setIcon(spinner);
         spinnerTimer.start();
-        new SwingWorker<WindowsHardwareProbe, Void>() {
+        new SwingWorker<HardwareSnapshot, Void>() {
             @Override
-            protected WindowsHardwareProbe doInBackground() {
-                return WindowsHardwareProbe.read();
+            protected HardwareSnapshot doInBackground() {
+                return hardwareSource.read();
             }
 
             @Override
             protected void done() {
                 try {
-                    WindowsHardwareProbe result = get();
+                    HardwareSnapshot result = get();
                     hardware.showProbe(result);
                     if (result.warnings.isEmpty()) {
                         showStatus("Чтение завершено. Регистрация в испытательной сборке недоступна.", true);

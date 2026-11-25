@@ -1,6 +1,6 @@
 package com.pcinventory.agent.ui;
 
-import com.pcinventory.agent.collector.WindowsHardwareProbe;
+import com.pcinventory.agent.collector.HardwareSnapshot;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -19,6 +19,9 @@ import java.awt.Graphics;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class HardwarePanel extends JPanel {
     private static final String[] LABELS = {
@@ -74,7 +77,7 @@ final class HardwarePanel extends JPanel {
         setSection(storage, "Физические накопители", "", new JLabel("Ожидание чтения"));
     }
 
-    void showProbe(WindowsHardwareProbe probe) {
+    void showProbe(HardwareSnapshot probe) {
         String os = probe.os == null ? probe.runtime.os + " — по данным JVM" : probe.os;
         String memorySummary = probe.installedMemory > 0
                 ? gibibytes(probe.installedMemory) + " · установлено"
@@ -85,8 +88,16 @@ final class HardwarePanel extends JPanel {
             network = "STATIC".equals(probe.networkMode) ? "Статический IPv4: " + addresses
                     : probe.networkMode + " · Статический IPv4: " + addresses;
         }
-        setValues(probe.hostname, os, probe.cpu, probe.motherboard,
-                probe.gpus.isEmpty() ? null : String.join("\n", probe.gpus), memorySummary, network);
+        String cpu = probe.cpuModel;
+        if (cpu != null && probe.physicalCores > 0 && probe.logicalThreads > 0) {
+            cpu += " · " + probe.physicalCores + " ядер / " + probe.logicalThreads + " потоков";
+        }
+        String motherboard = Stream.of(probe.boardVendor, probe.boardModel).filter(Objects::nonNull)
+                .collect(Collectors.joining(" "));
+        String gpuModels = probe.gpus.stream().map(gpu -> gpu.name == null ? "Модель неизвестна" : gpu.name)
+                .collect(Collectors.joining("\n"));
+        setValues(probe.hostname, os, cpu, motherboard.isEmpty() ? null : motherboard,
+                gpuModels.isEmpty() ? null : gpuModels, memorySummary, network);
         graphics.setRows(Math.max(1, probe.gpus.size()));
         runtime.setText("Java " + probe.runtime.javaVersion + " · JVM " + probe.runtime.jvmArchitecture);
         runtime.setVisible(true);
@@ -94,31 +105,39 @@ final class HardwarePanel extends JPanel {
         JComponent memoryBody = new JLabel("Сведения о модулях не получены");
         if (!probe.modules.isEmpty()) {
             JPanel cards = new JPanel(new GridLayout(0, Math.min(4, probe.modules.size()), 5, 5));
-            for (WindowsHardwareProbe.MemoryModule module : probe.modules) {
+            for (HardwareSnapshot.MemoryModule module : probe.modules) {
                 int speedMtps = module.configuredMtps > 0 ? module.configuredMtps : module.ratedMtps;
                 String speed = speedMtps > 0 ? speedMtps + " MT/s" : null;
-                cards.add(memoryCard(module.label == null ? "Без маркировки" : module.label,
-                        true, module.capacity > 0 ? gibibytes(module.capacity) : "Занят",
+                String label = module.slotId != null ? module.slotId : module.bankLabel;
+                String capacity = module.capacity > 0 ? gibibytes(module.capacity) : "Занят";
+                if (module.memoryType != null) {
+                    capacity += " " + module.memoryType;
+                }
+                cards.add(memoryCard(label == null ? "Без маркировки" : label,
+                        module.occupied, module.occupied ? capacity : "Свободен",
                         speed, module.manufacturer));
             }
             memoryBody = cards;
         }
         String slotCount = probe.slotsTotal > 0 ? " · мест по данным WMI: " + probe.slotsTotal : "";
-        setSection(memory, "Слоты оперативной памяти",
-                "Модулей: " + probe.modules.size() + slotCount, memoryBody);
+        long moduleCount = probe.modules.stream().filter(module -> module.occupied).count();
+        String memoryCounts = probe.slotsFree == null ? "Модулей: " + moduleCount + slotCount
+                : "Занято " + probe.slotsUsed + " из " + probe.slotsTotal;
+        setSection(memory, "Слоты оперативной памяти", memoryCounts, memoryBody);
 
         JComponent storageBody = new JLabel("Внутренние накопители не определены");
         if (!probe.disks.isEmpty()) {
             JPanel disks = new JPanel(new GridLayout(0, 1, 0, 4));
-            for (WindowsHardwareProbe.Disk disk : probe.disks) {
+            for (HardwareSnapshot.Disk disk : probe.disks) {
                 String capacity = disk.capacity > 0
                         ? String.format(Locale.ROOT, "%.1f GB", disk.capacity / 1_000_000_000.0) : "—";
-                disks.add(diskRow("—", disk.name, disk.connection, capacity));
+                disks.add(diskRow("UNKNOWN".equals(disk.type) ? "—" : disk.type,
+                        disk.name == null ? "Модель неизвестна" : disk.name, disk.connection, capacity));
             }
             storageBody = disks;
         }
         setSection(storage, "Физические накопители", "Найдено: " + probe.disks.size(), storageBody);
-        warnings.setText("Недоступные источники: " + String.join(", ", probe.warnings));
+        warnings.setText("Предупреждения: " + String.join(". ", probe.warnings));
         warnings.setVisible(!probe.warnings.isEmpty());
     }
 

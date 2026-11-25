@@ -10,7 +10,9 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 final class SmbiosMemory {
     private static final int RAW_SMBIOS = 0x52534D42; // RSMB
@@ -20,29 +22,41 @@ final class SmbiosMemory {
         int GetSystemFirmwareTable(int provider, int table, Pointer buffer, int size);
     }
 
-    private final String locator;
-    private final String bank;
-    private final long capacity;
+    final String locator;
+    final String bank;
+    final long capacity;
     final int ratedMtps;
     final int configuredMtps;
+    final int arrayHandle;
+    final int memoryType;
+    final int formFactor;
+    final boolean empty;
 
-    private SmbiosMemory(String locator, String bank, long capacity, int ratedMtps, int configuredMtps) {
+    private SmbiosMemory(String locator, String bank, long capacity, int ratedMtps, int configuredMtps,
+                         int arrayHandle, int memoryType, int formFactor, boolean empty) {
         this.locator = locator;
         this.bank = bank;
         this.capacity = capacity;
         this.ratedMtps = ratedMtps;
         this.configuredMtps = configuredMtps;
+        this.arrayHandle = arrayHandle;
+        this.memoryType = memoryType;
+        this.formFactor = formFactor;
+        this.empty = empty;
     }
 
     static List<SmbiosMemory> read() {
         FirmwareApi api = Native.load("kernel32", FirmwareApi.class);
         int size = api.GetSystemFirmwareTable(RAW_SMBIOS, 0, null, 0);
         if (size < HEADER_SIZE || size > 16 * 1024 * 1024) {
-            return Collections.emptyList();
+            throw new IllegalStateException("Invalid SMBIOS table size");
         }
         try (Memory buffer = new Memory(size)) {
             int written = api.GetSystemFirmwareTable(RAW_SMBIOS, 0, buffer, size);
-            return written == size ? parse(buffer.getByteArray(0, size)) : Collections.emptyList();
+            if (written != size) {
+                throw new IllegalStateException("Incomplete SMBIOS table");
+            }
+            return parse(buffer.getByteArray(0, size));
         }
     }
 
@@ -51,10 +65,6 @@ final class SmbiosMemory {
             return Collections.emptyList();
         }
         int version = Byte.toUnsignedInt(raw[1]) * 256 + Byte.toUnsignedInt(raw[2]);
-        // SMBIOS revisions through 3.0 described MHz, although some firmware stored MT/s.
-        if (version < 0x0301) {
-            return Collections.emptyList();
-        }
         ByteBuffer data = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN);
         int tableSize = data.getInt(4);
         if (tableSize < 0 || tableSize > raw.length - HEADER_SIZE) {
@@ -63,6 +73,7 @@ final class SmbiosMemory {
 
         int end = HEADER_SIZE + tableSize;
         List<SmbiosMemory> modules = new ArrayList<>();
+        Set<Integer> systemArrays = new HashSet<>();
         for (int start = HEADER_SIZE; start + 4 <= end; ) {
             int type = Byte.toUnsignedInt(raw[start]);
             int length = Byte.toUnsignedInt(raw[start + 1]);
@@ -80,34 +91,25 @@ final class SmbiosMemory {
             if (terminator + 1 >= end) {
                 return Collections.emptyList();
             }
-            if (type == 17 && length >= 0x13) {
+            if (type == 16 && length >= 0x0f && raw[start + 5] == 3) {
+                systemArrays.add(Short.toUnsignedInt(data.getShort(start + 2)));
+            } else if (type == 17 && length >= 0x13) {
                 long capacity = capacity(data, start, length);
                 String locator = stringAt(raw, strings, terminator, raw[start + 0x10]);
                 String bank = stringAt(raw, strings, terminator, raw[start + 0x11]);
-                if (capacity > 0 && !locator.isEmpty()) {
-                    boolean extended = version >= 0x0303;
-                    modules.add(new SmbiosMemory(locator, bank, capacity,
-                            speed(data, start, length, 0x15, 0x54, extended),
-                            speed(data, start, length, 0x20, 0x58, extended)));
-                }
+                // Older tables described speed in MHz and some vendors stored MT/s instead.
+                boolean mtps = version >= 0x0301;
+                boolean extended = version >= 0x0303;
+                modules.add(new SmbiosMemory(locator, bank, capacity,
+                        mtps ? speed(data, start, length, 0x15, 0x54, extended) : 0,
+                        mtps ? speed(data, start, length, 0x20, 0x58, extended) : 0,
+                        Short.toUnsignedInt(data.getShort(start + 4)), Byte.toUnsignedInt(raw[start + 0x12]),
+                        Byte.toUnsignedInt(raw[start + 0x0e]), data.getShort(start + 0x0c) == 0));
             }
             start = terminator + 2;
         }
+        modules.removeIf(module -> !systemArrays.contains(module.arrayHandle));
         return modules;
-    }
-
-    static SmbiosMemory match(List<SmbiosMemory> modules, String locator, String bank, long capacity) {
-        SmbiosMemory match = null;
-        for (SmbiosMemory module : modules) {
-            if (module.capacity == capacity && module.locator.equalsIgnoreCase(locator)
-                    && module.bank.equalsIgnoreCase(bank == null ? "" : bank)) {
-                if (match != null) {
-                    return null;
-                }
-                match = module;
-            }
-        }
-        return match;
     }
 
     private static long capacity(ByteBuffer data, int start, int length) {
