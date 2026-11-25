@@ -1,0 +1,54 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/release-agent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+
+      - name: Build and verify InventoryAgent.exe
+        shell: pwsh
+        run: |
+          $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
+          ./agent/packaging/build-windows-poc.ps1 -SevenZip $sevenZip
+
+          $exe = 'agent/target/windows/InventoryAgent.exe'
+          & $sevenZip t $exe
+          if ($LASTEXITCODE -ne 0) { throw 'EXE payload verification failed' }
+
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksum = (Get-Content -LiteralPath "$exe.sha256" -Raw).Trim()
+          if ($checksum -ne "$hash  InventoryAgent.exe") { throw 'EXE checksum mismatch' }
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v7
+        with:
+          name: InventoryAgent-windows-x86
+          path: |
+            agent/target/windows/InventoryAgent.exe
+            agent/target/windows/InventoryAgent.exe.sha256
+          if-no-files-found: error
+          compression-level: 0

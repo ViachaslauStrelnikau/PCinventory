@@ -27,6 +27,8 @@ java -jar agent/target/inventory-agent-0.1.0-SNAPSHOT.jar
 
 Скрипт проверяет SHA-256 входных архивов и сохраняет EXE и файл контрольной суммы в `agent/target/windows`.
 
+GitHub Actions запускает сборку при изменениях в `agent/` или в файле workflow, отправленных в `main`. Её также можно запустить вручную в **Actions → Build Windows EXE → Run workflow**. В успешном запуске откройте **Artifacts → InventoryAgent-windows-x86**. Архив содержит автономный EXE и файл SHA-256.
+
 ## Веб-приложение
 
 Используйте Node.js 24.15 или новее в ветке 24 и npm из комплекта Node.js. Из корня репозитория:
