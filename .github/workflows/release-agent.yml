@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-exe-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   package:
     runs-on: windows-2025
@@ -52,3 +56,41 @@ jobs:
             agent/target/windows/InventoryAgent.exe.sha256
           if-no-files-found: error
           compression-level: 0
+
+  publish:
+    needs: package
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download verified Windows build
+        uses: actions/download-artifact@v8
+        with:
+          name: InventoryAgent-windows-x86
+          path: dist
+
+      - name: Publish Windows prerelease
+        shell: bash
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tr -d '\r' < InventoryAgent.exe.sha256 | sha256sum --check --strict
+
+          build="$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT"
+          {
+            printf '%s\n\n' 'Испытательная сборка PCinventory для Windows.'
+            printf '%s\n\n' 'Скачайте InventoryAgent.exe и запустите его. Java 8 x86 уже включена в EXE.'
+            printf '[Сборка GitHub Actions](%s/%s/actions/runs/%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          } > release-notes.md
+
+          gh release create "windows-build-$build" InventoryAgent.exe InventoryAgent.exe.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "PCinventory Windows build $build" \
+            --notes-file release-notes.md \
+            --prerelease \
+            --latest=false
