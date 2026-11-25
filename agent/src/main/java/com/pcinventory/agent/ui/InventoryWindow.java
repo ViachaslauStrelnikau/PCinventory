@@ -12,6 +12,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
@@ -33,6 +34,11 @@ public final class InventoryWindow extends JFrame {
     private final HardwarePanel hardware = new HardwarePanel();
     private final JButton read = new JButton("Прочитать конфигурацию");
     private final JLabel status = new JLabel("Ожидание чтения конфигурации");
+    private final ReadingSpinner spinner = new ReadingSpinner();
+    private final Timer spinnerTimer = new Timer(80, event -> {
+        spinner.advance();
+        status.repaint();
+    });
     private final boolean preview;
 
     public InventoryWindow(boolean preview) {
@@ -183,6 +189,8 @@ public final class InventoryWindow extends JFrame {
         }
         read.setEnabled(false);
         showStatus("Чтение конфигурации компьютера…", false);
+        status.setIcon(spinner);
+        spinnerTimer.start();
         new SwingWorker<WindowsHardwareProbe, Void>() {
             @Override
             protected WindowsHardwareProbe doInBackground() {
@@ -205,9 +213,21 @@ public final class InventoryWindow extends JFrame {
                 } catch (ExecutionException exception) {
                     showStatus("Не удалось прочитать конфигурацию. Попробуйте ещё раз.", false);
                 } finally {
+                    stopSpinner();
                     read.setEnabled(true);
                 }
             }
         }.execute();
+    }
+
+    @Override
+    public void dispose() {
+        stopSpinner();
+        super.dispose();
+    }
+
+    private void stopSpinner() {
+        spinnerTimer.stop();
+        status.setIcon(null);
     }
 }

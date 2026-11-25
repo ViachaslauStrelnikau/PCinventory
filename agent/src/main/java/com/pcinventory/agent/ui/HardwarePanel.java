@@ -46,7 +46,8 @@ final class HardwarePanel extends JPanel {
             values[index] = field;
             InventoryWindow.addLabeledRow(details, index, LABELS[index], field);
         }
-        graphics.setBorder(new JTextField().getBorder());
+        graphics.setBorder(values[0].getBorder());
+        graphics.setFont(values[0].getFont());
         graphics.setLineWrap(true);
         graphics.setWrapStyleWord(true);
 
@@ -78,8 +79,14 @@ final class HardwarePanel extends JPanel {
         String memorySummary = probe.installedMemory > 0
                 ? gibibytes(probe.installedMemory) + " · установлено"
                 : probe.visibleMemory > 0 ? gibibytes(probe.visibleMemory) + " · видимо ОС" : null;
+        String network = probe.networkMode;
+        if (!probe.staticIpv4.isEmpty()) {
+            String addresses = String.join(", ", probe.staticIpv4);
+            network = "STATIC".equals(probe.networkMode) ? "Статический IPv4: " + addresses
+                    : probe.networkMode + " · Статический IPv4: " + addresses;
+        }
         setValues(probe.hostname, os, probe.cpu, probe.motherboard,
-                probe.gpus.isEmpty() ? null : String.join("\n", probe.gpus), memorySummary, probe.networkMode);
+                probe.gpus.isEmpty() ? null : String.join("\n", probe.gpus), memorySummary, network);
         graphics.setRows(Math.max(1, probe.gpus.size()));
         runtime.setText("Java " + probe.runtime.javaVersion + " · JVM " + probe.runtime.jvmArchitecture);
         runtime.setVisible(true);

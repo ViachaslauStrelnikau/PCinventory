@@ -8,12 +8,19 @@ import oshi.hardware.CentralProcessor;
 import oshi.software.os.OperatingSystem;
 import oshi.util.platform.windows.WmiQueryHandler;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public final class WindowsHardwareProbe {
@@ -21,7 +28,7 @@ public final class WindowsHardwareProbe {
     private enum Memory { DEVICELOCATOR, BANKLABEL, CAPACITY, MANUFACTURER, SPEED }
     private enum Video { NAME }
     private enum DiskDrive { MODEL, SIZE, INTERFACETYPE, MEDIATYPE, PNPDEVICEID }
-    private enum Adapter { INDEX, PNPDEVICEID }
+    private enum Adapter { INDEX, INTERFACEINDEX, PNPDEVICEID }
     private enum NetworkConfig { INDEX, DHCPENABLED }
 
     public final RuntimeProbe runtime = RuntimeProbe.read();
@@ -29,6 +36,7 @@ public final class WindowsHardwareProbe {
     public final List<String> gpus = new ArrayList<>();
     public final List<MemoryModule> modules = new ArrayList<>();
     public final List<Disk> disks = new ArrayList<>();
+    public final Set<String> staticIpv4 = new LinkedHashSet<>();
     public String hostname;
     public String os;
     public String cpu;
@@ -175,6 +183,9 @@ public final class WindowsHardwareProbe {
             Object dhcp = dhcpByIndex.get(adapters.getValue(Adapter.INDEX, row));
             if (dhcp instanceof Boolean) {
                 modes.add(Boolean.TRUE.equals(dhcp) ? "DHCP" : "STATIC");
+                if (Boolean.FALSE.equals(dhcp)) {
+                    readStaticIpv4(positive(adapters.getValue(Adapter.INTERFACEINDEX, row)));
+                }
             } else {
                 modes.add("UNKNOWN");
             }
@@ -183,6 +194,28 @@ public final class WindowsHardwareProbe {
             networkMode = "MIXED";
         } else if (!modes.isEmpty() && !modes.contains("UNKNOWN")) {
             networkMode = modes.get(0);
+        }
+    }
+
+    private void readStaticIpv4(long interfaceIndex) {
+        if (interfaceIndex <= 0 || interfaceIndex > Integer.MAX_VALUE) {
+            return;
+        }
+        try {
+            NetworkInterface adapter = NetworkInterface.getByIndex((int) interfaceIndex);
+            if (adapter == null) {
+                return;
+            }
+            Enumeration<InetAddress> addresses = adapter.getInetAddresses();
+            while (addresses.hasMoreElements()) {
+                InetAddress address = addresses.nextElement();
+                if (address instanceof Inet4Address && !address.isLoopbackAddress() && !address.isLinkLocalAddress()
+                        && !address.isAnyLocalAddress() && !address.isMulticastAddress()) {
+                    staticIpv4.add(address.getHostAddress());
+                }
+            }
+        } catch (SocketException exception) {
+            warnings.add("NetworkInterface/IPv4");
         }
     }
 
@@ -236,7 +269,8 @@ public final class WindowsHardwareProbe {
                 "WMI memory places: " + slotsTotal, "WMI installed modules: " + modules.size(),
                 "WMI modules with Speed: " + modulesWithSpeed,
                 "WMI graphics controllers: " + gpus.size(), "WMI disk candidates: " + disks.size(),
-                "WMI network mode: " + networkMode, "Unavailable sources: " + warnings);
+                "WMI network mode: " + networkMode, "Static IPv4 count: " + staticIpv4.size(),
+                "Unavailable sources: " + warnings);
         for (MemoryModule module : modules) {
             lines.add("SMBIOS module: configured=" + module.configuredMtps + ", rated="
                     + module.ratedMtps + " MT/s (0 = unavailable)");
