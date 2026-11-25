@@ -1,6 +1,7 @@
 # PCinventory
 
 - Read `DESIGN.md` before making changes. Follow the stage gates in `docs/IMPLEMENTATION_PLAN.md` and record unresolved decisions in `docs/decisions.md`.
+- After completing each stage in `docs/IMPLEMENTATION_PLAN.md`, run its required checks, record the results, and create a separate local Git commit before starting the next stage.
 - Use Russian for user-facing text and English for code, technical identifiers, and code comments.
 - Keep the Windows agent compatible with Java 8 bytecode. Verify x86, WOW64, WMI, TLS, and read-only UNC execution on the target Windows matrix before claiming support. Deliver a single self-contained EXE after the packaging PoC.
 - Keep the Swing agent to one window and two primary actions. Read hardware after explicit user action. Preserve assignment input across reads and failures. Floor and room are required. Preserve string identifiers and leading zeros.
