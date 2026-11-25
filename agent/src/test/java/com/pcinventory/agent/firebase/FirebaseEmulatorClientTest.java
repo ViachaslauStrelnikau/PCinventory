@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.pcinventory.agent.firebase.FirebaseEmulatorClient.Result.*;
+import static com.pcinventory.agent.firebase.FirebaseClient.Result.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class FirebaseEmulatorClientTest {
@@ -28,7 +28,7 @@ class FirebaseEmulatorClientTest {
     static final String AUTH = "/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
     static final String COMMIT = "/v1/projects/demo-pcinventory/databases/(default)/documents:commit";
     private HttpServer server;
-    private FirebaseEmulatorClient client;
+    private FirebaseClient client;
     private final AtomicInteger logins = new AtomicInteger();
     private final List<JsonNode> writes = new ArrayList<>();
     private final List<String> tokens = new ArrayList<>();
@@ -44,7 +44,7 @@ class FirebaseEmulatorClientTest {
         server.createContext(COMMIT, this::commit);
         server.start();
         int port = server.getAddress().getPort();
-        client = new FirebaseEmulatorClient(port, port);
+        client = new FirebaseClient(port, port);
     }
 
     @AfterEach
@@ -132,7 +132,7 @@ class FirebaseEmulatorClientTest {
         assertTrue(writes.isEmpty());
     }
 
-    private FirebaseEmulatorClient.Result submit(SubmissionDraft draft) {
+    private FirebaseClient.Result submit(SubmissionDraft draft) {
         return client.submit(draft, "collector@example.invalid", "local-only".toCharArray());
     }
 

@@ -4,12 +4,16 @@ import com.pcinventory.agent.collector.HardwareReport;
 import com.pcinventory.agent.collector.HardwareSnapshot;
 import com.pcinventory.agent.collector.HardwareSource;
 import com.pcinventory.agent.contract.Assignment;
-import com.pcinventory.agent.firebase.FirebaseEmulatorClient;
+import com.pcinventory.agent.firebase.CollectorAccount;
+import com.pcinventory.agent.firebase.FirebaseClient;
+import com.pcinventory.agent.firebase.LocationDirectory;
 import com.pcinventory.agent.firebase.SubmissionDraft;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -18,6 +22,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
@@ -29,6 +34,7 @@ import javax.swing.text.DocumentFilter;
 import javax.swing.text.JTextComponent;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GraphicsEnvironment;
@@ -49,9 +55,13 @@ public final class InventoryWindow extends JFrame {
     private final JTextField inventoryNumber = new JTextField(28);
     private final JTextField employeeName = new JTextField(28);
     private final JTextField department = new JTextField(28);
-    private final JTextField building = new JTextField(28);
-    private final JTextField floor = new JTextField(16);
-    private final JTextField room = new JTextField(16);
+    private final JComboBox<String> buildings = editableLocation();
+    private final JComboBox<String> floors = editableLocation();
+    private final JComboBox<String> rooms = editableLocation();
+    private final JTextComponent building = (JTextComponent) buildings.getEditor().getEditorComponent();
+    private final JTextComponent floor = (JTextComponent) floors.getEditor().getEditorComponent();
+    private final JTextComponent room = (JTextComponent) rooms.getEditor().getEditorComponent();
+    private final JLabel directoryStatus = new JLabel();
     private final JTextArea comment = new JTextArea(3, 30);
     private final JTextField email = new JTextField(28);
     private final JPasswordField password = new JPasswordField(28);
@@ -64,18 +74,24 @@ public final class InventoryWindow extends JFrame {
         status.repaint();
     });
     private final boolean preview;
-    private final FirebaseEmulatorClient emulator;
+    private final FirebaseClient client;
+    private final CollectorAccount account;
+    private LocationDirectory directory = new LocationDirectory();
+    private SwingWorker<LocationDirectory, Void> locationRequest;
+    private boolean updatingLocations;
+    private boolean locationUpdatePending;
     private HardwareSnapshot snapshot;
     private boolean busy;
     private SubmissionDraft draft;
     private String[] draftAssignment;
-    private SwingWorker<FirebaseEmulatorClient.Result, Void> submission;
+    private SwingWorker<FirebaseClient.Result, Void> submission;
 
-    public InventoryWindow(HardwareSource hardwareSource, boolean preview, FirebaseEmulatorClient emulator) {
+    public InventoryWindow(HardwareSource hardwareSource, boolean preview, FirebaseClient client, CollectorAccount account) {
         super("Computer Inventory — Регистрация компьютера");
         this.hardwareSource = hardwareSource;
         this.preview = preview;
-        this.emulator = emulator;
+        this.client = client;
+        this.account = account;
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
         register.setEnabled(false);
@@ -86,14 +102,14 @@ public final class InventoryWindow extends JFrame {
         actions.add(register);
 
         JPanel footer = new JPanel(new BorderLayout(0, 6));
-        if (emulator != null) {
+        if (client != null && account == null) {
             JPanel operator = new JPanel(new GridBagLayout());
             operator.setBorder(BorderFactory.createTitledBorder("Локальный эмулятор · отчёт поступит на проверку"));
             addField(operator, 0, "Почта сборщика", email, 256);
             addField(operator, 1, "Пароль сборщика", password, 256);
             footer.add(operator, BorderLayout.PAGE_START);
-            listenForFormChanges();
         }
+        listenForFormChanges();
         footer.add(actions, BorderLayout.CENTER);
         status.setOpaque(true);
         status.setBorder(BorderFactory.createEmptyBorder(7, 8, 7, 8));
@@ -125,6 +141,7 @@ public final class InventoryWindow extends JFrame {
             showStatus("Демонстрационные данные. Регистрация недоступна.", true);
         } else {
             showStatus("Ожидание чтения конфигурации", false);
+            if (account != null) loadLocations();
         }
     }
 
@@ -137,11 +154,14 @@ public final class InventoryWindow extends JFrame {
         addField(fields, 0, "Инвентарный номер", inventoryNumber, 256);
         addField(fields, 1, "ФИО сотрудника", employeeName, 256);
         addField(fields, 2, "Подразделение", department, 256);
-        addField(fields, 3, "Здание / корпус *", building, 256);
+        limitInput(building, 256);
+        limitInput(floor, 64);
+        limitInput(room, 64);
+        addLabeledRow(fields, 3, "Здание / корпус *", buildings);
 
         JPanel location = new JPanel(new GridLayout(1, 2, 8, 0));
-        location.add(locationField("Этаж *", floor));
-        location.add(locationField("Кабинет *", room));
+        location.add(locationField("Этаж *", floors));
+        location.add(locationField("Кабинет *", rooms));
 
         comment.setLineWrap(true);
         comment.setWrapStyleWord(true);
@@ -157,13 +177,20 @@ public final class InventoryWindow extends JFrame {
         mainFields.setLayout(new BoxLayout(mainFields, BoxLayout.Y_AXIS));
         mainFields.add(fields);
         mainFields.add(location);
+        if (account != null) mainFields.add(directoryStatus);
         assignment.add(mainFields, BorderLayout.PAGE_START);
         assignment.add(notes, BorderLayout.CENTER);
         return assignment;
     }
 
-    private static JPanel locationField(String name, JTextField field) {
-        limitInput(field, 64);
+    private static JComboBox<String> editableLocation() {
+        JComboBox<String> combo = new JComboBox<>();
+        combo.setEditable(true);
+        combo.setPrototypeDisplayValue("000000000000");
+        return combo;
+    }
+
+    private static JPanel locationField(String name, JComboBox<String> field) {
         JLabel label = new JLabel(name);
         label.setLabelFor(field);
         JPanel panel = new JPanel(new BorderLayout(6, 0));
@@ -177,7 +204,7 @@ public final class InventoryWindow extends JFrame {
         addLabeledRow(panel, row, name, field);
     }
 
-    static void addLabeledRow(JPanel panel, int row, String name, JTextComponent field) {
+    static void addLabeledRow(JPanel panel, int row, String name, Component field) {
         JLabel label = new JLabel(name);
         label.setLabelFor(field);
         Dimension labelSize = label.getPreferredSize();
@@ -243,9 +270,11 @@ public final class InventoryWindow extends JFrame {
                     HardwareSnapshot result = get();
                     hardware.showProbe(result);
                     snapshot = result;
-                    if (emulator != null) {
+                    if (client != null) {
                         if (HardwareReport.canSubmit(result)) {
-                            showStatus("Конфигурация прочитана. Укажите местоположение и данные сборщика.", true);
+                            showStatus(account == null
+                                    ? "Конфигурация прочитана. Укажите местоположение и данные сборщика."
+                                    : "Конфигурация прочитана. Укажите местоположение.", true);
                         } else {
                             showStatus("Недостаточно данных для регистрации. Повторите чтение.", false);
                         }
@@ -272,6 +301,8 @@ public final class InventoryWindow extends JFrame {
         if (submission != null) {
             submission.cancel(true);
         }
+        if (locationRequest != null) locationRequest.cancel(true);
+        if (account != null) account.clear();
         password.setText("");
         stopSpinner();
         super.dispose();
@@ -284,13 +315,79 @@ public final class InventoryWindow extends JFrame {
 
     private void listenForFormChanges() {
         DocumentListener listener = new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent event) { updateRegisterButton(); }
-            @Override public void removeUpdate(DocumentEvent event) { updateRegisterButton(); }
-            @Override public void changedUpdate(DocumentEvent event) { updateRegisterButton(); }
+            @Override public void insertUpdate(DocumentEvent event) { changed(event); }
+            @Override public void removeUpdate(DocumentEvent event) { changed(event); }
+            @Override public void changedUpdate(DocumentEvent event) { changed(event); }
+
+            private void changed(DocumentEvent event) {
+                if (updatingLocations) return;
+                updateRegisterButton();
+                if (account != null && !locationUpdatePending
+                        && (event.getDocument() == building.getDocument() || event.getDocument() == floor.getDocument())) {
+                    locationUpdatePending = true;
+                    SwingUtilities.invokeLater(() -> {
+                        locationUpdatePending = false;
+                        refreshLocationChoices();
+                    });
+                }
+            }
         };
         for (JTextComponent field : fields) {
             field.getDocument().addDocumentListener(listener);
         }
+    }
+
+    private void loadLocations() {
+        directoryStatus.setText("Загрузка справочника расположений…");
+        locationRequest = new SwingWorker<LocationDirectory, Void>() {
+            @Override
+            protected LocationDirectory doInBackground() throws Exception {
+                return client.loadLocations(account.email, account.passwordCopy());
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    directory = get();
+                    refreshLocationChoices();
+                    directoryStatus.setText(directory.buildings().length == 0
+                            ? "Справочник пуст. Укажите расположение вручную."
+                            : "Выберите расположение из справочника или введите вручную.");
+                } catch (CancellationException ignored) {
+                    // The window was closed.
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException exception) {
+                    directoryStatus.setText("Справочник недоступен. Укажите расположение вручную.");
+                } finally {
+                    locationRequest = null;
+                }
+            }
+        };
+        locationRequest.execute();
+    }
+
+    private void refreshLocationChoices() {
+        updatingLocations = true;
+        try {
+            replaceChoices(buildings, building, directory.buildings());
+            replaceChoices(floors, floor, directory.floors(entry(building)));
+            replaceChoices(rooms, room, directory.rooms(entry(building), entry(floor)));
+        } finally {
+            updatingLocations = false;
+        }
+        updateRegisterButton();
+    }
+
+    static void replaceChoices(JComboBox<String> combo, JTextComponent field, String[] choices) {
+        int index = 0;
+        while (index < choices.length && index < combo.getItemCount()
+                && choices[index].equals(combo.getItemAt(index))) index++;
+        if (index == choices.length && index == combo.getItemCount()) return;
+        String text = field.getText();
+        combo.setModel(new DefaultComboBoxModel<>(choices));
+        combo.setSelectedItem(text);
+        field.setText(text);
     }
 
     private void setBusy(boolean value) {
@@ -310,13 +407,13 @@ public final class InventoryWindow extends JFrame {
     }
 
     private void updateRegisterButton() {
-        if (emulator == null || busy || snapshot == null || !HardwareReport.canSubmit(snapshot)) {
+        if (client == null || busy || snapshot == null || !HardwareReport.canSubmit(snapshot)) {
             register.setEnabled(false);
             return;
         }
         String[] values = assignmentValues();
         register.setEnabled(values[0] != null && values[1] != null && values[2] != null
-                && entry(email) != null && password.getDocument().getLength() > 0
+                && (account != null || entry(email) != null && password.getDocument().getLength() > 0)
                 && (draft == null || !draft.isSent() || !Arrays.equals(values, draftAssignment)));
     }
 
@@ -339,19 +436,20 @@ public final class InventoryWindow extends JFrame {
             draftAssignment = values;
         }
         SubmissionDraft pending = draft;
-        String account = entry(email);
-        char[] secret = password.getPassword();
+        String collectorEmail = account == null ? entry(email) : account.email;
+        char[] secret = account == null ? password.getPassword() : account.passwordCopy();
         setBusy(true);
         for (JTextComponent field : fields) {
             field.setEnabled(false);
         }
-        showStatus("Отправка отчёта в локальный эмулятор…", false);
+        setLocationEnabled(false);
+        showStatus("Отправка отчёта на проверку…", false);
         status.setIcon(spinner);
         spinnerTimer.start();
-        submission = new SwingWorker<FirebaseEmulatorClient.Result, Void>() {
+        submission = new SwingWorker<FirebaseClient.Result, Void>() {
             @Override
-            protected FirebaseEmulatorClient.Result doInBackground() {
-                return emulator.submit(pending, account, secret);
+            protected FirebaseClient.Result doInBackground() {
+                return client.submit(pending, collectorEmail, secret);
             }
 
             @Override
@@ -371,6 +469,7 @@ public final class InventoryWindow extends JFrame {
                     for (JTextComponent field : fields) {
                         field.setEnabled(true);
                     }
+                    setLocationEnabled(true);
                     submission = null;
                     stopSpinner();
                     setBusy(false);
@@ -380,7 +479,13 @@ public final class InventoryWindow extends JFrame {
         submission.execute();
     }
 
-    private void showSubmissionResult(FirebaseEmulatorClient.Result result, String reportId) {
+    private void setLocationEnabled(boolean enabled) {
+        buildings.setEnabled(enabled);
+        floors.setEnabled(enabled);
+        rooms.setEnabled(enabled);
+    }
+
+    private void showSubmissionResult(FirebaseClient.Result result, String reportId) {
         switch (result) {
             case SENT:
                 showStatus("ОК. Отчёт отправлен на проверку администратору.", true);
@@ -389,13 +494,13 @@ public final class InventoryWindow extends JFrame {
                 showStatus("Отчёт не прошёл проверку. Проверьте учётные данные и повторите чтение.", false);
                 break;
             case LOGIN_FAILED:
-                showStatus("Не удалось войти. Проверьте почту и пароль сборщика.", false);
+                showStatus("Не удалось войти с учётной записью сборщика.", false);
                 break;
             case ACCESS_DENIED:
                 showStatus("Отправка запрещена. Проверьте роль сборщика и открыт ли приём.", false);
                 break;
             case NETWORK_ERROR:
-                showStatus("Нет связи с локальным эмулятором. Проверьте его запуск.", false);
+                showStatus("Не удалось связаться с сервисом инвентаризации.", false);
                 break;
             case UNCONFIRMED:
                 showStatus("Не удалось подтвердить сохранение. ID отчёта " + reportId, false);

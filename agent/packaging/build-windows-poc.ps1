@@ -39,6 +39,31 @@ function Get-VerifiedArchive([string]$Name, [string]$Url, [string]$Sha256) {
     return $path
 }
 
+function Add-CollectorConfiguration([string]$Jar) {
+    $configuration = [ordered]@{
+        projectId = $env:PCINVENTORY_FIREBASE_PROJECT_ID
+        apiKey = $env:PCINVENTORY_FIREBASE_API_KEY
+        email = $env:PCINVENTORY_COLLECTOR_EMAIL
+        password = $env:PCINVENTORY_COLLECTOR_PASSWORD
+    }
+    $provided = @($configuration.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+    if ($provided -eq 0) { return }
+    if ($provided -ne $configuration.Count -or $configuration.projectId -cnotmatch '^[a-z][a-z0-9-]{4,28}[a-z0-9]$' -or
+        $configuration.apiKey -cnotmatch '^[A-Za-z0-9_-]{10,128}$' -or $configuration.email -notmatch '^[^\s@]+@[^\s@]+$') {
+        throw 'Incomplete or invalid Firebase collector configuration.'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [IO.Compression.ZipFile]::Open($Jar, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $zip.CreateEntry('agent-collector.json')
+        $writer = [IO.StreamWriter]::new($entry.Open(), [Text.UTF8Encoding]::new($false))
+        try { $writer.Write(($configuration | ConvertTo-Json -Compress)) }
+        finally { $writer.Dispose() }
+    } finally {
+        $zip.Dispose()
+    }
+}
+
 $jreZip = Get-VerifiedArchive 'bellsoft-jre8u514+5-windows-i586.zip' `
     'https://github.com/bell-sw/Liberica/releases/download/8u514%2B5/bellsoft-jre8u514%2B5-windows-i586.zip' `
     'B7B2CE5B770794D36C3B90261713A1FAD514A9A3D8E9EE33C138A3CA8AE37938'
@@ -62,7 +87,9 @@ try {
 
     [xml]$project = Get-Content -LiteralPath $pom -Raw
     $jar = Join-Path $target "$($project.project.artifactId)-$($project.project.version).jar"
-    Copy-Item -LiteralPath $jar -Destination (Join-Path $payload 'inventory-agent.jar')
+    $packagedJar = Join-Path $payload 'inventory-agent.jar'
+    Copy-Item -LiteralPath $jar -Destination $packagedJar
+    Add-CollectorConfiguration $packagedJar
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'THIRD-PARTY.txt') -Destination $payload
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'OSHI-LICENSE.txt') -Destination $licenses
 

@@ -13,6 +13,7 @@ import {
   where, writeBatch,
 } from 'firebase/firestore';
 import pendingFixture from '../../contracts/fixtures/pending-report.json' with { type: 'json' };
+import { locationId } from '../../functions/location-directory.mjs';
 
 const projectId = 'demo-pcinventory';
 const collectorId = 'test-collector';
@@ -81,6 +82,26 @@ async function seed(documents) {
     await batch.commit();
   });
 }
+
+test('collector can read only the confirmed location directory', async () => {
+  const location = { building: 'Корпус Б', floor: '2', room: '010' };
+  const path = 'locations/' + await locationId(location);
+  const reader = env.authenticatedContext(userId).firestore();
+  const disabled = env.authenticatedContext(disabledCollectorId).firestore();
+  const anonymous = env.unauthenticatedContext().firestore();
+  await assertFails(setDoc(doc(collector, path), location));
+  await assertFails(setDoc(doc(admin, path), { ...location, employeeName: 'Сотрудник' }));
+  await assertSucceeds(setDoc(doc(admin, path), location));
+  assert.deepEqual((await assertSucceeds(getDocFromServer(doc(collector, path)))).data(), location);
+  await assertSucceeds(getDocsFromServer(collection(collector, 'locations')));
+  await assertSucceeds(getDocsFromServer(collection(reader, 'locations')));
+  await assertFails(getDocsFromServer(collection(anonymous, 'locations')));
+  await assertFails(getDocsFromServer(collection(disabled, 'locations')));
+  await assertFails(getDocsFromServer(collection(collector, 'computers')));
+  await assertFails(getDocsFromServer(collection(collector, 'inventoryReports')));
+  await assertFails(updateDoc(doc(admin, path), { room: '011' }));
+  await assertFails(deleteDoc(doc(admin, path)));
+});
 
 function submission(reportId = firstId, uid = collectorId) {
   return { ...structuredClone(pendingFixture), reportId, submittedAt: serverTimestamp(), submittedBy: uid };

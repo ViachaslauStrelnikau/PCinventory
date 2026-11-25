@@ -47,6 +47,7 @@
 <div class="registry-grid">
   <aside class="panel location-tree" aria-label="Расположение">
     <h2>Расположение</h2>
+    @if (data.locationsError()) { <p class="muted" role="status">{{ data.locationsError() }}</p> }
     <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
       Все здания <span>{{ state.filteredWithoutPlace().length }}</span>
     </button>

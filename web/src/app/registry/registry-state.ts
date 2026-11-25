@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { InventoryData } from '../core/inventory-data';
 import type { ComputerDocument, ContractTimestamp, Disk, Hardware, WarningCode } from '../core/contracts/inventory-types';
+import type { InventoryLocation } from '../../../../functions/location-directory.mjs';
 
 export const missing = '—';
 export const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
@@ -90,15 +91,17 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
     && (!place.room || card.room === place.room);
 }
 
-function locationTree(cards: readonly ComputerDocument[]) {
+function locationTree(cards: readonly ComputerDocument[], locations: readonly InventoryLocation[]) {
   const buildings = new Map<string, Map<string, Map<string, number>>>();
-  for (const { building, floor, room } of cards) {
+  function add({ building, floor, room }: InventoryLocation, count: number): void {
     if (!buildings.has(building)) buildings.set(building, new Map());
     const floors = buildings.get(building)!;
     if (!floors.has(floor)) floors.set(floor, new Map());
     const rooms = floors.get(floor)!;
-    rooms.set(room, (rooms.get(room) ?? 0) + 1);
+    rooms.set(room, (rooms.get(room) ?? 0) + count);
   }
+  for (const location of locations) add(location, 0);
+  for (const card of cards) add(card, 1);
   const sorted = <T>(values: Map<string, T>) => [...values].sort(([a], [b]) => collator.compare(a, b));
   return sorted(buildings).map(([name, floors]) => ({
     name,
@@ -149,7 +152,7 @@ export class RegistryState {
         && (end === null || (scanned !== null && scanned < end));
     });
   });
-  readonly tree = computed(() => locationTree(this.filteredWithoutPlace()));
+  readonly tree = computed(() => locationTree(this.filteredWithoutPlace(), this.data.locations()));
   readonly filtered = computed(() => {
     const place = this.place();
     const { column, ascending } = this.sort();

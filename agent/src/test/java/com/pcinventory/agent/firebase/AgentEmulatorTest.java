@@ -17,22 +17,21 @@ import java.net.URL;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.pcinventory.agent.firebase.FirebaseEmulatorClient.Result.*;
+import static com.pcinventory.agent.firebase.FirebaseClient.Result.*;
 import static com.pcinventory.agent.firebase.FirebaseEmulatorClientTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@EnabledIfEnvironmentVariable(named = "FIREBASE_AUTH_EMULATOR_HOST", matches = "127\\.0\\.0\\.1:9099")
+@EnabledIfEnvironmentVariable(named = "FIREBASE_AUTH_EMULATOR_HOST", matches = "127\\.0\\.0\\.1:[0-9]+")
 class AgentEmulatorTest {
     private static final String DOCUMENTS = "/v1/projects/demo-pcinventory/databases/(default)/documents/";
 
     @Test
     void verifiesRealAuthRulesAndCreateOnlyRetryAfterLostResponse() throws Exception {
-        assertEquals("127.0.0.1:8080", System.getenv("FIRESTORE_EMULATOR_HOST"));
         String email = UUID.randomUUID() + "@example.invalid";
         String password = UUID.randomUUID().toString();
         ObjectNode signUp = JSON.createObjectNode().put("email", email).put("password", password)
                 .put("returnSecureToken", true);
-        Reply account = request(9099, "/identitytoolkit.googleapis.com/v1/accounts:signUp?key=local-test",
+        Reply account = request(port("FIREBASE_AUTH_EMULATOR_HOST"), "/identitytoolkit.googleapis.com/v1/accounts:signUp?key=local-test",
                 "POST", signUp, null);
         assertEquals(200, account.status);
         String uid = account.body.path("localId").asText();
@@ -45,7 +44,23 @@ class AgentEmulatorTest {
 
         InventoryReport report = fixture();
         SubmissionDraft draft = new SubmissionDraft(report.deviceId, report.hardware, report.assignment);
-        FirebaseEmulatorClient client = new FirebaseEmulatorClient();
+        FirebaseClient client = new FirebaseClient(port("FIREBASE_AUTH_EMULATOR_HOST"), port("FIRESTORE_EMULATOR_HOST"));
+        for (int i = 0; i < 27; i++) {
+            ObjectNode location = JSON.createObjectNode();
+            ObjectNode address = location.putObject("fields");
+            address.putObject("building").put("stringValue", i < 26 ? "Корпус А" : "Корпус Б");
+            address.putObject("floor").put("stringValue", i < 15 ? "1" : "2");
+            address.putObject("room").put("stringValue", String.format(java.util.Locale.ROOT, "%03d", i));
+            seed("locations/" + String.format(java.util.Locale.ROOT, "%064x", i), location);
+        }
+        LocationDirectory directory = client.loadLocations(email, password.toCharArray());
+        assertArrayEquals(new String[]{"Корпус А", "Корпус Б"}, directory.buildings());
+        assertArrayEquals(new String[]{"1", "2"}, directory.floors("Корпус А"));
+        assertEquals(15, directory.rooms("Корпус А", "1").length);
+        assertEquals(11, directory.rooms("Корпус А", "2").length);
+        assertEquals("010", directory.rooms("Корпус А", "1")[10]);
+        assertArrayEquals(new String[]{"026"}, directory.rooms("Корпус Б", "2"));
+        assertThrows(IOException.class, () -> client.loadLocations(email, "invalid-password".toCharArray()));
         setIntake(false);
         assertEquals(LOGIN_FAILED, client.submit(draft, email, "invalid-password".toCharArray()));
         assertEquals(ACCESS_DENIED, client.submit(draft, email, password.toCharArray()));
@@ -55,7 +70,7 @@ class AgentEmulatorTest {
         assertEquals(SENT, client.submit(draft, email, password.toCharArray()));
         assertEquals(SENT, client.submit(draft, email, password.toCharArray()));
         assertPending(draft, uid);
-        assertEquals(404, request(8080, DOCUMENTS + "computers/" + report.deviceId, "GET", null, "Bearer owner").status);
+        assertEquals(404, request(port("FIRESTORE_EMULATOR_HOST"), DOCUMENTS + "computers/" + report.deviceId, "GET", null, "Bearer owner").status);
 
         SubmissionDraft lost = new SubmissionDraft(report.deviceId, report.hardware, report.assignment);
         AtomicInteger forwarded = new AtomicInteger();
@@ -64,7 +79,7 @@ class AgentEmulatorTest {
         proxy.createContext(COMMIT, exchange -> {
             try {
                 String token = exchange.getRequestHeaders().getFirst("Authorization");
-                Reply result = request(8080, COMMIT, "POST", JSON.readTree(exchange.getRequestBody()), token);
+                Reply result = request(port("FIRESTORE_EMULATOR_HOST"), COMMIT, "POST", JSON.readTree(exchange.getRequestBody()), token);
                 boolean first = forwarded.incrementAndGet() == 1;
                 if (first) {
                     originalStatus.set(result.status);
@@ -78,7 +93,7 @@ class AgentEmulatorTest {
         });
         proxy.start();
         try {
-            FirebaseEmulatorClient interruptedClient = new FirebaseEmulatorClient(9099, proxy.getAddress().getPort());
+            FirebaseClient interruptedClient = new FirebaseClient(port("FIREBASE_AUTH_EMULATOR_HOST"), proxy.getAddress().getPort());
             assertEquals(UNCONFIRMED, interruptedClient.submit(lost, email, password.toCharArray()));
             assertEquals(200, originalStatus.get());
             assertEquals(2, forwarded.get());
@@ -89,7 +104,7 @@ class AgentEmulatorTest {
             proxy.stop(0);
         }
 
-        Reply listing = request(8080, DOCUMENTS + "inventoryReports", "GET", null, "Bearer owner");
+        Reply listing = request(port("FIRESTORE_EMULATOR_HOST"), DOCUMENTS + "inventoryReports", "GET", null, "Bearer owner");
         assertEquals(200, listing.status);
         assertEquals(2, listing.body.path("documents").size());
     }
@@ -105,11 +120,17 @@ class AgentEmulatorTest {
         payload.putArray("writes").addObject().putObject("update")
                 .put("name", "projects/demo-pcinventory/databases/(default)/documents/" + path)
                 .set("fields", document.path("fields"));
-        assertEquals(200, request(8080, COMMIT, "POST", payload, "Bearer owner").status);
+        assertEquals(200, request(port("FIRESTORE_EMULATOR_HOST"), COMMIT, "POST", payload, "Bearer owner").status);
     }
 
     private static Reply getReport(SubmissionDraft draft) throws IOException {
-        return request(8080, DOCUMENTS + "inventoryReports/" + draft.reportId(), "GET", null, "Bearer owner");
+        return request(port("FIRESTORE_EMULATOR_HOST"), DOCUMENTS + "inventoryReports/" + draft.reportId(), "GET", null, "Bearer owner");
+    }
+
+    private static int port(String variable) {
+        String value = System.getenv(variable);
+        assertTrue(value != null && value.matches("127\\.0\\.0\\.1:[0-9]+"));
+        return Integer.parseInt(value.substring(value.indexOf(':') + 1));
     }
 
     private static void assertPending(SubmissionDraft draft, String uid) throws IOException {

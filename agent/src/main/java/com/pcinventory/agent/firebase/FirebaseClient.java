@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -21,20 +22,36 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-public final class FirebaseEmulatorClient {
-    private static final String DATABASE = "projects/demo-pcinventory/databases/(default)";
+public final class FirebaseClient {
     private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final int MAX_RESPONSE_BYTES = 64 * 1024;
-    private final int authPort;
-    private final int firestorePort;
+    private final String authEndpoint;
+    private final String firestoreEndpoint;
+    private final String database;
+    private final boolean emulator;
 
-    public FirebaseEmulatorClient() {
+    public FirebaseClient() {
         this(9099, 8080);
     }
 
-    FirebaseEmulatorClient(int authPort, int firestorePort) {
-        this.authPort = authPort;
-        this.firestorePort = firestorePort;
+    FirebaseClient(int authPort, int firestorePort) {
+        this("http://127.0.0.1:" + authPort + "/identitytoolkit.googleapis.com", "http://127.0.0.1:" + firestorePort,
+                "demo-pcinventory", "demo-pcinventory-local-only", true);
+    }
+
+    public static FirebaseClient cloud(String projectId, String apiKey) {
+        if (!projectId.matches("[a-z][a-z0-9-]{4,28}[a-z0-9]") || !apiKey.matches("[A-Za-z0-9_-]{10,128}")) {
+            throw new IllegalArgumentException("Invalid Firebase project or key");
+        }
+        return new FirebaseClient("https://identitytoolkit.googleapis.com", "https://firestore.googleapis.com",
+                projectId, apiKey, false);
+    }
+
+    private FirebaseClient(String authBase, String firestoreBase, String projectId, String apiKey, boolean emulator) {
+        this.authEndpoint = authBase + "/v1/accounts:signInWithPassword?key=" + apiKey;
+        this.firestoreEndpoint = firestoreBase;
+        this.database = "projects/" + projectId + "/databases/(default)";
+        this.emulator = emulator;
     }
 
     public enum Result { SENT, INVALID_REPORT, LOGIN_FAILED, ACCESS_DENIED, NETWORK_ERROR, UNCONFIRMED, CANCELLED }
@@ -57,7 +74,7 @@ public final class FirebaseEmulatorClient {
             }
             ObjectNode fields = draft.pendingFields(credentials.uid);
             byte[] body = JSON.writeValueAsBytes(FirestoreWrite.createReport(JSON,
-                    DATABASE + "/documents/inventoryReports/" + draft.reportId(), fields));
+                    database + "/documents/inventoryReports/" + draft.reportId(), fields));
             return commit(draft, email, password, credentials, body, deadline);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -73,6 +90,37 @@ public final class FirebaseEmulatorClient {
         }
     }
 
+    public LocationDirectory loadLocations(String email, char[] password) throws IOException, InterruptedException {
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            Credentials credentials = signIn(email, password, deadline);
+            LocationDirectory directory = new LocationDirectory();
+            String pageToken = "";
+            do {
+                checkInterrupted();
+                String endpoint = firestoreEndpoint + "/v1/" + database + "/documents/locations?pageSize=25";
+                if (!pageToken.isEmpty()) endpoint += "&pageToken=" + URLEncoder.encode(pageToken, "UTF-8");
+                Response reply = request(endpoint, null, credentials.token, deadline);
+                if (!reply.success()) throw new IOException("Location directory unavailable");
+                JsonNode documents = reply.body.path("documents");
+                if (!documents.isMissingNode() && !documents.isArray()) throw new IOException("Invalid location page");
+                for (JsonNode document : documents) {
+                    JsonNode fields = document.path("fields");
+                    directory.add(fields.at("/building/stringValue").asText(""),
+                            fields.at("/floor/stringValue").asText(""), fields.at("/room/stringValue").asText(""));
+                }
+                String next = reply.body.path("nextPageToken").asText("");
+                if (!next.isEmpty() && next.equals(pageToken)) throw new IOException("Location paging did not advance");
+                pageToken = next;
+            } while (!pageToken.isEmpty());
+            return directory;
+        } catch (LoginRejected exception) {
+            throw new IOException("Collector sign-in rejected", exception);
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+    }
+
     private Result commit(SubmissionDraft draft, String email, char[] password, Credentials credentials,
                           byte[] body, long deadline) throws IOException, LoginRejected, InterruptedException {
         boolean reauthenticated = false;
@@ -80,7 +128,7 @@ public final class FirebaseEmulatorClient {
             checkInterrupted();
             Response reply = null;
             try {
-                reply = post(firestorePort, "/v1/" + DATABASE + "/documents:commit", body, credentials.token, deadline);
+                reply = request(firestoreEndpoint + "/v1/" + database + "/documents:commit", body, credentials.token, deadline);
             } catch (BeforeSend exception) {
                 // No commit bytes left the client.
             } catch (IOException exception) {
@@ -137,8 +185,7 @@ public final class FirebaseEmulatorClient {
         }
         byte[] body = buffer.toByteArray();
         try {
-            Response response = post(authPort, "/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-                    + "?key=demo-pcinventory-local-only", body, null, deadline);
+            Response response = request(authEndpoint, body, null, deadline);
             if (!response.success() && !retryable(response.code)) {
                 throw new LoginRejected();
             }
@@ -146,7 +193,7 @@ public final class FirebaseEmulatorClient {
             JsonNode token = response.body.path("idToken");
             if (!response.success() || !uid.isTextual() || uid.textValue().trim().isEmpty()
                     || !token.isTextual() || token.textValue().trim().isEmpty()) {
-                throw new IOException("Invalid local Auth response");
+                throw new IOException("Invalid Firebase Auth response");
             }
             return new Credentials(uid.textValue(), token.textValue());
         } finally {
@@ -154,16 +201,18 @@ public final class FirebaseEmulatorClient {
         }
     }
 
-    private static Response post(int port, String path, byte[] body, String token, long deadline) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL("http", "127.0.0.1", port, path)
-                .openConnection(Proxy.NO_PROXY);
+    private Response request(String endpoint, byte[] body, String token, long deadline) throws IOException {
+        URL url = new URL(endpoint);
+        HttpURLConnection connection = (HttpURLConnection) (emulator ? url.openConnection(Proxy.NO_PROXY) : url.openConnection());
         try {
-            connection.setRequestMethod("POST");
+            connection.setRequestMethod(body == null ? "GET" : "POST");
             connection.setInstanceFollowRedirects(false);
             connection.setUseCaches(false);
-            connection.setDoOutput(true);
-            connection.setFixedLengthStreamingMode(body.length);
-            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            if (body != null) {
+                connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(body.length);
+                connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            }
             if (token != null) {
                 connection.setRequestProperty("Authorization", "Bearer " + token);
             }
@@ -174,8 +223,10 @@ public final class FirebaseEmulatorClient {
             } catch (IOException exception) {
                 throw new BeforeSend();
             }
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(body);
+            if (body != null) {
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(body);
+                }
             }
             int code = connection.getResponseCode();
             String retryAfter = connection.getHeaderField("Retry-After");

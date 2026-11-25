@@ -279,6 +279,13 @@ service cloud.firestore {
       allow get: if request.auth != null && request.auth.uid == uid;
     }
 
+    match /locations/{id} {
+      allow get, list: if canReadComputers() || hasEnabledRole('COLLECTOR');
+      allow create: if hasEnabledRole('ADMIN') && id.matches('^[a-f0-9]{64}$')
+        && request.resource.data.keys().hasOnly(['building', 'floor', 'room'])
+        && validLocation(request.resource.data);
+    }
+
     match /settings/inventory {
       allow get: if hasEnabledRole('ADMIN');
       allow create, update: if hasEnabledRole('ADMIN')

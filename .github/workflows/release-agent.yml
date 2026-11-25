@@ -36,6 +36,11 @@ jobs:
 
       - name: Build and verify InventoryAgent.exe
         shell: pwsh
+        env:
+          PCINVENTORY_FIREBASE_PROJECT_ID: ${{ secrets.PCINVENTORY_FIREBASE_PROJECT_ID }}
+          PCINVENTORY_FIREBASE_API_KEY: ${{ secrets.PCINVENTORY_FIREBASE_API_KEY }}
+          PCINVENTORY_COLLECTOR_EMAIL: ${{ secrets.PCINVENTORY_COLLECTOR_EMAIL }}
+          PCINVENTORY_COLLECTOR_PASSWORD: ${{ secrets.PCINVENTORY_COLLECTOR_PASSWORD }}
         run: |
           $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
           ./agent/packaging/build-windows-poc.ps1 -SevenZip $sevenZip
