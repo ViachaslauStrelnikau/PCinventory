@@ -1,6 +1,7 @@
 package com.pcinventory.agent.app;
 
 import com.pcinventory.agent.collector.RuntimeProbe;
+import com.pcinventory.agent.collector.WindowsHardwareProbe;
 import com.pcinventory.agent.ui.InventoryWindow;
 
 import javax.swing.SwingUtilities;
@@ -14,6 +15,10 @@ public final class InventoryAgent {
     public static void main(String[] args) {
         if (args.length == 1 && "--probe".equals(args[0])) {
             System.out.println(RuntimeProbe.read());
+            return;
+        }
+        if (args.length == 1 && "--hardware-probe".equals(args[0])) {
+            WindowsHardwareProbe.read().diagnosticLines().forEach(System.out::println);
             return;
         }
 

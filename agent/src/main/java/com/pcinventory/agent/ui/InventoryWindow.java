@@ -1,6 +1,6 @@
 package com.pcinventory.agent.ui;
 
-import com.pcinventory.agent.collector.RuntimeProbe;
+import com.pcinventory.agent.collector.WindowsHardwareProbe;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -131,7 +131,7 @@ public final class InventoryWindow extends JFrame {
         addLabeledRow(panel, row, name, field);
     }
 
-    static void addLabeledRow(JPanel panel, int row, String name, JTextField field) {
+    static void addLabeledRow(JPanel panel, int row, String name, JTextComponent field) {
         JLabel label = new JLabel(name);
         label.setLabelFor(field);
         Dimension labelSize = label.getPreferredSize();
@@ -179,23 +179,28 @@ public final class InventoryWindow extends JFrame {
             return;
         }
         read.setEnabled(false);
-        showStatus("Чтение сведений о среде запуска…", false);
-        new SwingWorker<RuntimeProbe, Void>() {
+        showStatus("Чтение конфигурации компьютера…", false);
+        new SwingWorker<WindowsHardwareProbe, Void>() {
             @Override
-            protected RuntimeProbe doInBackground() {
-                return RuntimeProbe.read();
+            protected WindowsHardwareProbe doInBackground() {
+                return WindowsHardwareProbe.read();
             }
 
             @Override
             protected void done() {
                 try {
-                    hardware.showRuntime(get());
-                    showStatus("Сведения о среде прочитаны. Регистрация пока недоступна.", true);
+                    WindowsHardwareProbe result = get();
+                    hardware.showProbe(result);
+                    if (result.warnings.isEmpty()) {
+                        showStatus("Чтение завершено. Регистрация в испытательной сборке недоступна.", true);
+                    } else {
+                        showStatus("Часть сведений недоступна. Подробности в блоке конфигурации.", false);
+                    }
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     showStatus("Чтение прервано.", false);
                 } catch (ExecutionException exception) {
-                    showStatus("Не удалось прочитать сведения о среде.", false);
+                    showStatus("Не удалось прочитать конфигурацию. Попробуйте ещё раз.", false);
                 } finally {
                     read.setEnabled(true);
                 }

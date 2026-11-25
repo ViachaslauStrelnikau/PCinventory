@@ -1,0 +1,6 @@
+;!@Install@!UTF-8!
+Title="PCinventory"
+Progress="yes"
+Directory=""
+RunProgram="\"%%T\\jre\\bin\\javaw.exe\" -XX:-UsePerfData -Djava.io.tmpdir=\"%%T\" -Djna.tmpdir=\"%%T\" -jar \"%%T\\inventory-agent.jar\""
+;!@InstallEnd@!

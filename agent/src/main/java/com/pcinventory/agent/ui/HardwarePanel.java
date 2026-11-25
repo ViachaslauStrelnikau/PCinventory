@@ -1,6 +1,6 @@
 package com.pcinventory.agent.ui;
 
-import com.pcinventory.agent.collector.RuntimeProbe;
+import com.pcinventory.agent.collector.WindowsHardwareProbe;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -8,7 +8,9 @@ import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.text.JTextComponent;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -16,6 +18,7 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.util.Locale;
 
 final class HardwarePanel extends JPanel {
     private static final String[] LABELS = {
@@ -26,8 +29,10 @@ final class HardwarePanel extends JPanel {
     private static final Color OCCUPIED = new Color(223, 237, 226);
     private static final Color OCCUPIED_BORDER = new Color(121, 168, 132);
     private static final Color LINE = new Color(197, 199, 201);
-    private final JTextField[] values = new JTextField[LABELS.length];
+    private final JTextComponent[] values = new JTextComponent[LABELS.length];
+    private final JTextArea graphics = new JTextArea(1, 26);
     private final JLabel runtime = new JLabel();
+    private final JTextArea warnings = new JTextArea(1, 26);
     private final JPanel memory = new JPanel(new BorderLayout());
     private final JPanel storage = new JPanel(new BorderLayout());
 
@@ -35,12 +40,15 @@ final class HardwarePanel extends JPanel {
         super(new BorderLayout());
         JPanel details = new JPanel(new GridBagLayout());
         for (int index = 0; index < LABELS.length; index++) {
-            JTextField field = new JTextField(26);
+            JTextComponent field = index == 4 ? graphics : new JTextField(26);
             field.setEditable(false);
             field.setBackground(new Color(234, 234, 234));
             values[index] = field;
             InventoryWindow.addLabeledRow(details, index, LABELS[index], field);
         }
+        graphics.setBorder(new JTextField().getBorder());
+        graphics.setLineWrap(true);
+        graphics.setWrapStyleWord(true);
 
         JPanel sections = new JPanel();
         sections.setBorder(BorderFactory.createEmptyBorder(2, 6, 6, 6));
@@ -53,42 +61,84 @@ final class HardwarePanel extends JPanel {
         sections.add(memory);
         sections.add(Box.createVerticalStrut(5));
         sections.add(storage);
+        warnings.setEditable(false);
+        warnings.setOpaque(false);
+        warnings.setLineWrap(true);
+        warnings.setWrapStyleWord(true);
+        warnings.setVisible(false);
+        sections.add(warnings);
 
         add(sections, BorderLayout.PAGE_START);
         setSection(memory, "Слоты оперативной памяти", "", new JLabel("Ожидание чтения"));
         setSection(storage, "Физические накопители", "", new JLabel("Ожидание чтения"));
     }
 
-    void showRuntime(RuntimeProbe probe) {
-        values[1].setText(probe.os + " — по данным JVM");
-        values[1].setCaretPosition(0);
-        runtime.setText("Java " + probe.javaVersion + " · JVM " + probe.jvmArchitecture);
+    void showProbe(WindowsHardwareProbe probe) {
+        String os = probe.os == null ? probe.runtime.os + " — по данным JVM" : probe.os;
+        String memorySummary = probe.installedMemory > 0
+                ? gibibytes(probe.installedMemory) + " · установлено"
+                : probe.visibleMemory > 0 ? gibibytes(probe.visibleMemory) + " · видимо ОС" : null;
+        setValues(probe.hostname, os, probe.cpu, probe.motherboard,
+                probe.gpus.isEmpty() ? null : String.join("\n", probe.gpus), memorySummary, probe.networkMode);
+        graphics.setRows(Math.max(1, probe.gpus.size()));
+        runtime.setText("Java " + probe.runtime.javaVersion + " · JVM " + probe.runtime.jvmArchitecture);
         runtime.setVisible(true);
-        setSection(memory, "Слоты оперативной памяти", "", new JLabel("Сведения недоступны в каркасе"));
-        setSection(storage, "Физические накопители", "", new JLabel("Сведения недоступны в каркасе"));
+
+        JComponent memoryBody = new JLabel("Сведения о модулях не получены");
+        if (!probe.modules.isEmpty()) {
+            JPanel cards = new JPanel(new GridLayout(0, Math.min(4, probe.modules.size()), 5, 5));
+            for (WindowsHardwareProbe.MemoryModule module : probe.modules) {
+                cards.add(memoryCard(module.label == null ? "Без маркировки" : module.label,
+                        true, module.capacity > 0 ? gibibytes(module.capacity) : "Занят",
+                        null, module.manufacturer));
+            }
+            memoryBody = cards;
+        }
+        String slotCount = probe.slotsTotal > 0 ? " · мест по данным WMI: " + probe.slotsTotal : "";
+        setSection(memory, "Слоты оперативной памяти",
+                "Модулей: " + probe.modules.size() + slotCount, memoryBody);
+
+        JComponent storageBody = new JLabel("Внутренние накопители не определены");
+        if (!probe.disks.isEmpty()) {
+            JPanel disks = new JPanel(new GridLayout(0, 1, 0, 4));
+            for (WindowsHardwareProbe.Disk disk : probe.disks) {
+                String capacity = disk.capacity > 0
+                        ? String.format(Locale.ROOT, "%.1f GB", disk.capacity / 1_000_000_000.0) : "—";
+                disks.add(diskRow("—", disk.name, disk.connection, capacity));
+            }
+            storageBody = disks;
+        }
+        setSection(storage, "Физические накопители", "Найдено: " + probe.disks.size(), storageBody);
+        warnings.setText("Недоступные источники: " + String.join(", ", probe.warnings));
+        warnings.setVisible(!probe.warnings.isEmpty());
     }
 
     void showPreview() {
-        String[] sample = {
-                "OFFICE-PC-012", "Windows 10 Pro x64", "Intel Core i5-10400 (6 ядер / 12 потоков)",
+        setValues("OFFICE-PC-012", "Windows 10 Pro x64", "Intel Core i5-10400 (6 ядер / 12 потоков)",
                 "ASUS PRIME B460M-A", "NVIDIA GeForce GTX 1650 — 4 GiB", "16 GiB DDR4",
-                "Статический IP: 192.0.2.105"
-        };
-        for (int index = 0; index < values.length; index++) {
-            values[index].setText(sample[index]);
-            values[index].setCaretPosition(0);
-        }
+                "Статический IP: 192.0.2.105");
         JPanel slots = new JPanel(new GridLayout(1, 4, 5, 0));
-        slots.add(memoryCard("DIMM A1", false, null));
-        slots.add(memoryCard("DIMM A2", true, "2666 MT/s"));
-        slots.add(memoryCard("DIMM B1", false, null));
-        slots.add(memoryCard("DIMM B2", true, null));
+        slots.add(memoryCard("DIMM A1", false, "Свободен", null, null));
+        slots.add(memoryCard("DIMM A2", true, "8 GiB DDR4", "2666 MT/s", "Kingston"));
+        slots.add(memoryCard("DIMM B1", false, "Свободен", null, null));
+        slots.add(memoryCard("DIMM B2", true, "8 GiB DDR4", null, "Kingston"));
         setSection(memory, "Слоты оперативной памяти", "Занято 2 из 4", slots);
 
         JPanel disks = new JPanel(new GridLayout(0, 1, 0, 4));
         disks.add(diskRow("SSD", "Samsung SSD 870 EVO", "SATA", "500 GB"));
         disks.add(diskRow("HDD", "Western Digital WD10EZEX", "SATA", "1 TB"));
         setSection(storage, "Физические накопители", "2 устройства", disks);
+    }
+
+    private void setValues(String... text) {
+        for (int index = 0; index < values.length; index++) {
+            values[index].setText(text[index] == null ? "—" : text[index]);
+            values[index].setCaretPosition(0);
+        }
+    }
+
+    private static String gibibytes(long bytes) {
+        return String.format(Locale.ROOT, "%.1f GiB", bytes / 1_073_741_824.0);
     }
 
     private static void setSection(JPanel section, String name, String summary, JComponent body) {
@@ -105,11 +155,12 @@ final class HardwarePanel extends JPanel {
         section.repaint();
     }
 
-    private static JPanel memoryCard(String label, boolean occupied, String speed) {
+    private static JPanel memoryCard(String label, boolean occupied, String capacity, String speed,
+                                     String manufacturer) {
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         decorate(card, occupied ? OCCUPIED : PANEL, occupied ? OCCUPIED_BORDER : LINE);
-        addCentered(card, new JLabel(label));
+        addCentered(card, hardwareLabel(label));
         JComponent module = new JComponent() {
             @Override
             protected void paintComponent(Graphics graphics) {
@@ -133,12 +184,12 @@ final class HardwarePanel extends JPanel {
         module.setPreferredSize(moduleSize);
         module.setMaximumSize(moduleSize);
         addCentered(card, module);
-        addCentered(card, new JLabel(occupied ? "8 GiB DDR4" : "Свободен"));
+        addCentered(card, new JLabel(capacity));
         if (speed != null) {
             addCentered(card, new JLabel(speed));
         }
-        if (occupied) {
-            addCentered(card, new JLabel("Kingston"));
+        if (manufacturer != null) {
+            addCentered(card, hardwareLabel(manufacturer));
         }
         return card;
     }
@@ -158,8 +209,10 @@ final class HardwarePanel extends JPanel {
         badge.setPreferredSize(new Dimension(36, 29));
         JPanel description = new JPanel(new GridLayout(0, 1));
         description.setOpaque(false);
-        description.add(new JLabel(model));
-        description.add(new JLabel(type + " · " + connection));
+        description.add(hardwareLabel(model));
+        if (connection != null) {
+            description.add(hardwareLabel("—".equals(type) ? connection : type + " · " + connection));
+        }
         row.add(badge, BorderLayout.LINE_START);
         row.add(description, BorderLayout.CENTER);
         row.add(new JLabel(capacity), BorderLayout.LINE_END);
@@ -170,5 +223,12 @@ final class HardwarePanel extends JPanel {
         card.setBackground(background);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(border), BorderFactory.createEmptyBorder(3, 5, 3, 5)));
+    }
+
+    private static JLabel hardwareLabel(String text) {
+        JLabel label = new JLabel();
+        label.putClientProperty("html.disable", Boolean.TRUE);
+        label.setText(text);
+        return label;
     }
 }
