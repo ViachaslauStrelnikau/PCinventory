@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pcinventory.invalid/contracts/v1/computer-document.schema.json",
-  "title": "PCinventory accepted computer v1",
+  "title": "PCinventory computer record v1",
   "type": "object",
   "unevaluatedProperties": false,
   "allOf": [
@@ -31,16 +31,35 @@
       "default": "ACTIVE"
     },
     "lastReportId": {
-      "$ref": "shared.schema.json#/$defs/uuid"
+      "anyOf": [{ "$ref": "shared.schema.json#/$defs/uuid" }, { "type": "null" }]
     },
     "lastInventoryAt": {
-      "$ref": "shared.schema.json#/$defs/timestamp"
+      "anyOf": [{ "$ref": "shared.schema.json#/$defs/timestamp" }, { "type": "null" }]
     },
     "assignmentUpdatedAt": {
       "$ref": "shared.schema.json#/$defs/timestamp"
     },
     "assignmentUpdatedBy": {
       "$ref": "shared.schema.json#/$defs/uid"
+    }
+  },
+  "if": {
+    "required": ["identitySource"],
+    "properties": { "identitySource": { "const": "MANUAL" } }
+  },
+  "then": {
+    "required": ["status"],
+    "properties": {
+      "status": true,
+      "agentVersion": { "const": "manual" },
+      "lastReportId": { "type": "null" },
+      "lastInventoryAt": { "type": "null" }
+    }
+  },
+  "else": {
+    "properties": {
+      "lastReportId": { "$ref": "shared.schema.json#/$defs/uuid" },
+      "lastInventoryAt": { "$ref": "shared.schema.json#/$defs/timestamp" }
     }
   }
 }

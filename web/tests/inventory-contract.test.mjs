@@ -5,9 +5,11 @@ import pending from '../../contracts/fixtures/pending-report.json' with { type: 
 import partial from '../../contracts/fixtures/partial-report.json' with { type: 'json' };
 import accepted from '../../contracts/fixtures/accepted-report.json' with { type: 'json' };
 import computer from '../../contracts/fixtures/computer.json' with { type: 'json' };
+import manualComputer from '../../contracts/fixtures/manual-computer.json' with { type: 'json' };
+import corrected from '../../contracts/fixtures/corrected-report.json' with { type: 'json' };
 import { readComputer, readReport } from '../src/app/core/contracts/inventory-contract.ts';
 
-const sources = { pending, partial, accepted, computer };
+const sources = { pending, partial, accepted, computer, 'manual-computer': manualComputer, corrected };
 for (const fixture of cases) {
   test(fixture.name, () => {
     const document = structuredClone(sources[fixture.source]);
@@ -21,7 +23,7 @@ for (const fixture of cases) {
         delete parent[last];
       }
     }
-    const read = fixture.source === 'computer' ? readComputer : readReport;
+    const read = fixture.source.endsWith('computer') ? readComputer : readReport;
     if (fixture.expected === null) {
       assert.deepEqual(read(document), document);
     } else {

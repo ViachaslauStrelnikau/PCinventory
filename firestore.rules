@@ -21,6 +21,14 @@ service cloud.firestore {
       return user.enabled == true && user.role == role;
     }
 
+    function canReadComputers() {
+      return request.auth != null && readsRegistry(get(userPath(request.auth.uid)).data);
+    }
+
+    function readsRegistry(user) {
+      return user.enabled == true && user.role in ['ADMIN', 'USER'];
+    }
+
     function acceptingReports() {
       return get(/databases/$(database)/documents/settings/inventory).data.acceptingReports == true;
     }
@@ -119,12 +127,8 @@ service cloud.firestore {
         && (h.ramSlotTopology != 'COMPLETE' || (total == slotCount && used != null && free != null));
     }
 
-    function validHardware(h, deviceId) {
-      let fields = hardwareKeys();
-      return h is map && h.keys().toSet() == fields.toSet()
-        && validDeviceId(deviceId, h.identitySource)
-        && h.schemaVersion is int && h.schemaVersion == 1
-        && nonBlank(h.agentVersion, 64) && nonBlank(h.hostname, 255)
+    function validHardwareValues(h) {
+      return nonBlank(h.hostname, 255)
         && validSystem(h) && validMemory(h)
         && nullableCapacity(h.storageTotalBytes) && h.hasSsd in [null, true, false]
         && boundedList(h.disks, 64)
@@ -139,7 +143,29 @@ service cloud.firestore {
         && validUuid(reportId) && report.reportId == reportId
         && report.status == 'PENDING' && report.submittedBy == request.auth.uid
         && report.submittedAt == request.time
-        && validReportAssignment(report.assignment) && validHardware(report.hardware, report.deviceId);
+        && validReportAssignment(report.assignment) && validAgentHardware(report.hardware, report.deviceId);
+    }
+
+    function validAgentHardware(h, deviceId) {
+      return h.keys().toSet() == hardwareKeys().toSet()
+        && validDeviceId(deviceId, h.identitySource)
+        && h.schemaVersion is int && h.schemaVersion == 1
+        && nonBlank(h.agentVersion, 64) && validHardwareValues(h);
+    }
+
+    function validCorrection(before, after) {
+      let correction = after.correction;
+      let hardware = correction.hardware;
+      return before.status == 'PENDING'
+        && after.diff(before).affectedKeys().hasOnly(['correction'])
+        && correction.keys().toSet() == ['hardware', 'assignment', 'updatedAt', 'updatedBy'].toSet()
+        && correction.updatedAt == request.time && correction.updatedAt >= before.submittedAt
+        && correction.updatedBy == request.auth.uid
+        && hardware.keys().toSet() == hardwareKeys().toSet()
+        && hardware.identitySource == before.hardware.identitySource
+        && hardware.schemaVersion is int && hardware.schemaVersion == before.hardware.schemaVersion
+        && hardware.agentVersion == before.hardware.agentVersion
+        && validReportAssignment(correction.assignment) && validHardwareValues(hardware);
     }
 
     function validReview(before, after) {
@@ -150,7 +176,7 @@ service cloud.firestore {
     }
 
     function validComputerAssignment(card) {
-      return card.keys().hasAll(assignmentKeys()) && validLocation(card)
+      return validLocation(card)
         && blankOrText(card.inventoryNumber, 256) && blankOrText(card.employeeName, 256)
         && blankOrText(card.department, 256) && blankOrText(card.comment, 2000);
     }
@@ -160,16 +186,17 @@ service cloud.firestore {
     }
 
     function matchesAcceptedReport(card, report, reportId) {
-      // Every report hardware field must be present and unchanged in the flat card.
-      let technicalDiff = card.diff(report.hardware);
+      // The flat card must contain all hardware fields from the saved effective report.
+      let effective = report.get('correction', report);
+      let technicalDiff = card.diff(effective.hardware);
       let metadata = ['deviceId', 'status', 'lastReportId', 'lastInventoryAt', 'assignmentUpdatedAt', 'assignmentUpdatedBy'];
       return card.deviceId == report.deviceId && report.reportId == reportId
         && card.lastReportId == reportId && card.lastInventoryAt == report.submittedAt
         && technicalDiff.changedKeys().size() == 0 && technicalDiff.removedKeys().size() == 0
         && technicalDiff.addedKeys().hasOnly(assignmentKeys().concat(metadata))
         && validComputerAssignment(card)
-        && card.building == report.assignment.building && card.floor == report.assignment.floor
-        && card.room == report.assignment.room;
+        && card.building == effective.assignment.building && card.floor == effective.assignment.floor
+        && card.room == effective.assignment.room;
     }
 
     function matchesOptionalAssignment(card, report, previous, key) {
@@ -204,7 +231,7 @@ service cloud.firestore {
       return card.deviceId == deviceId && validUuid(card.lastReportId)
         && validReview(pending, accepted) && accepted.status == 'ACCEPTED'
         && matchesAcceptedReport(card, pending, card.lastReportId)
-        && matchesOptionalAssignments(card, pending.assignment, previous == null ? {} : previous)
+        && matchesOptionalAssignments(card, pending.get('correction', pending).assignment, previous == null ? {} : previous)
         && (previous == null ? card.status == 'ACTIVE' && validAssignmentAudit(card)
           : validAcceptanceUpdate(card, previous));
     }
@@ -222,11 +249,30 @@ service cloud.firestore {
       return exists(path) ? getAfter(path).data == get(path).data : !existsAfter(path);
     }
 
-    function independentAssignmentUpdate(card, previous) {
-      let changed = card.diff(previous).affectedKeys();
-      return changed.hasOnly(assignmentKeys().concat(['status', 'assignmentUpdatedAt', 'assignmentUpdatedBy']))
+    function cardMetadataKeys() {
+      return ['deviceId', 'status', 'lastReportId', 'lastInventoryAt', 'assignmentUpdatedAt', 'assignmentUpdatedBy'];
+    }
+
+    function validManualCard(card, deviceId) {
+      return card.deviceId == deviceId && deviceId.matches('^manual-' + uuidPattern() + '$')
+        && card.identitySource == 'MANUAL' && card.agentVersion == 'manual'
+        && card.schemaVersion is int && card.schemaVersion == 1
+        && card.status == 'ACTIVE' && card.lastReportId == null && card.lastInventoryAt == null
+        && card.keys().toSet() == hardwareKeys().concat(assignmentKeys()).concat(cardMetadataKeys()).toSet()
+        && validAssignmentAudit(card) && validComputerAssignment(card) && validHardwareValues(card);
+    }
+
+    function independentCardUpdate(card, previous) {
+      let diff = card.diff(previous);
+      let changed = diff.affectedKeys();
+      return !changed.hasAny(['deviceId', 'identitySource', 'schemaVersion', 'agentVersion', 'lastReportId', 'lastInventoryAt'])
+        && diff.removedKeys().size() == 0
+        && changed.hasOnly(hardwareKeys().concat(assignmentKeys())
+          .concat(['status', 'assignmentUpdatedAt', 'assignmentUpdatedBy']))
         && (!changed.hasAny(['status']) || card.status in ['ACTIVE', 'RETIRED'])
-        && validComputerAssignment(card) && validAssignmentAudit(card);
+        && validAssignmentAudit(card)
+        && (!changed.hasAny(assignmentKeys()) || validComputerAssignment(card))
+        && (!changed.hasAny(hardwareKeys()) || validHardwareValues(card));
     }
 
     match /users/{uid} {
@@ -244,17 +290,22 @@ service cloud.firestore {
       allow create: if hasEnabledRole('COLLECTOR') && acceptingReports()
         && validSubmission(request.resource.data, reportId);
       allow get, list: if hasEnabledRole('ADMIN');
-      allow update: if hasEnabledRole('ADMIN') && validReview(resource.data, request.resource.data)
-        && (request.resource.data.status == 'ACCEPTED' ? linkedCardAfterAcceptance(reportId, resource.data)
-          : unchangedComputer(resource.data.deviceId));
+      allow update: if hasEnabledRole('ADMIN')
+        && (request.resource.data.status == 'PENDING' ? validCorrection(resource.data, request.resource.data)
+          : validReview(resource.data, request.resource.data)
+            && (request.resource.data.status == 'ACCEPTED' ? linkedCardAfterAcceptance(reportId, resource.data)
+              : unchangedComputer(resource.data.deviceId)));
     }
 
     match /computers/{deviceId} {
-      allow get, list: if hasEnabledRole('ADMIN');
-      allow create: if hasEnabledRole('ADMIN') && linkedAcceptance(deviceId, request.resource.data, null);
+      allow get, list: if canReadComputers();
+      allow create: if hasEnabledRole('ADMIN')
+        && (request.resource.data.identitySource == 'MANUAL' ? validManualCard(request.resource.data, deviceId)
+          : linkedAcceptance(deviceId, request.resource.data, null));
       allow update: if hasEnabledRole('ADMIN')
-        && (independentAssignmentUpdate(request.resource.data, resource.data)
+        && (independentCardUpdate(request.resource.data, resource.data)
           || linkedAcceptance(deviceId, request.resource.data, resource.data));
+      allow delete: if hasEnabledRole('ADMIN') && resource.data.status == 'RETIRED';
     }
   }
 }

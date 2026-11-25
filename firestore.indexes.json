@@ -2,6 +2,7 @@
   "indexes": [],
   "fieldOverrides": [
     { "collectionGroup": "inventoryReports", "fieldPath": "hardware", "indexes": [] },
+    { "collectionGroup": "inventoryReports", "fieldPath": "correction", "indexes": [] },
     { "collectionGroup": "inventoryReports", "fieldPath": "assignment.comment", "indexes": [] },
     { "collectionGroup": "computers", "fieldPath": "comment", "indexes": [] },
     { "collectionGroup": "computers", "fieldPath": "gpus", "indexes": [] },

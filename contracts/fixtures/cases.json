@@ -1,5 +1,169 @@
 [
   {
+    "name": "accepts a manually entered computer",
+    "source": "manual-computer",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "manual computer must have explicit status",
+    "source": "manual-computer",
+    "changes": [
+      {
+        "path": "/status"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "manual computer cannot link to an agent report",
+    "source": "manual-computer",
+    "changes": [
+      {
+        "path": "/lastReportId",
+        "value": "6c021ce0-b1a0-4680-8780-f210f00f0003"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "manual computer requires a manual device ID",
+    "source": "manual-computer",
+    "changes": [
+      {
+        "path": "/deviceId",
+        "value": "smbios-6c021ce0-b1a0-4680-8780-f210f00f0001"
+      }
+    ],
+    "expected": "identitySource"
+  },
+  {
+    "name": "accepted agent computer requires report time",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/lastInventoryAt",
+        "value": null
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "agent reports cannot use manual device IDs",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/deviceId",
+        "value": "manual-6c021ce0-b1a0-4680-8780-f210f00f0008"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "accepts a persisted correction before review",
+    "source": "corrected",
+    "changes": [],
+    "expected": null
+  },
+  {
+    "name": "accepts a processed report with correction",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/status",
+        "value": "ACCEPTED"
+      },
+      {
+        "path": "/reviewedAt",
+        "value": {
+          "seconds": 1795600802,
+          "nanoseconds": 0
+        }
+      },
+      {
+        "path": "/reviewedBy",
+        "value": "test-admin"
+      }
+    ],
+    "expected": null
+  },
+  {
+    "name": "correction must preserve agent version",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/correction/hardware/agentVersion",
+        "value": "other"
+      }
+    ],
+    "expected": "correction agentVersion"
+  },
+  {
+    "name": "correction must preserve identity source",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/correction/hardware/identitySource",
+        "value": "LOCAL"
+      }
+    ],
+    "expected": "identitySource"
+  },
+  {
+    "name": "correction hardware uses the same consistency checks",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/correction/hardware/ramSlotsUsed",
+        "value": 3
+      }
+    ],
+    "expected": "RAM slot counts"
+  },
+  {
+    "name": "correction requires its audit actor",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/correction/updatedBy"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "correction must follow submission",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/correction/updatedAt/seconds",
+        "value": 1795600799
+      }
+    ],
+    "expected": "correction time"
+  },
+  {
+    "name": "review must follow saved correction",
+    "source": "corrected",
+    "changes": [
+      {
+        "path": "/status",
+        "value": "ACCEPTED"
+      },
+      {
+        "path": "/reviewedAt",
+        "value": {
+          "seconds": 1795600800,
+          "nanoseconds": 123000000
+        }
+      },
+      {
+        "path": "/reviewedBy",
+        "value": "test-admin"
+      }
+    ],
+    "expected": "correction time"
+  },
+  {
     "name": "complete RAM with different modules",
     "source": "pending",
     "changes": [],

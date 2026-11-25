@@ -2,7 +2,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import sharedSchema from '../../../../../contracts/shared.schema.json' with { type: 'json' };
 import reportSchema from '../../../../../contracts/computer-report.schema.json' with { type: 'json' };
 import computerSchema from '../../../../../contracts/computer-document.schema.json' with { type: 'json' };
-import type { ComputerDocument, Hardware, InventoryReport, NetworkMode } from './inventory-types';
+import type { ComputerDocument, ContractTimestamp, Hardware, InventoryReport, NetworkMode } from './inventory-types';
 
 const validator = new Ajv2020({ ownProperties: true, strict: true });
 validator.addSchema(sharedSchema);
@@ -14,15 +14,28 @@ const BYTES_PER_GIB = 1024 ** 3;
 
 export function readReport(value: unknown): InventoryReport {
   requireValid(validateReport(value), 'JSON Schema');
-  requireValid(new TextEncoder().encode(JSON.stringify(value)).length <= MAX_REPORT_BYTES, 'report exceeds 64 KiB');
+  const { correction, ...original } = value;
+  requireValid(jsonSize(original) <= MAX_REPORT_BYTES, 'report exceeds 64 KiB');
   checkHardware(value.deviceId, value.hardware);
   if (value.status !== 'PENDING') {
-    const reviewed = value.reviewedAt;
-    const submitted = value.submittedAt;
-    requireValid(reviewed.seconds > submitted.seconds
-      || (reviewed.seconds === submitted.seconds && reviewed.nanoseconds >= submitted.nanoseconds), 'reviewedAt');
+    requireValid(atOrAfter(value.reviewedAt, value.submittedAt), 'reviewedAt');
+  }
+  if (correction) {
+    requireValid(jsonSize(correction) <= MAX_REPORT_BYTES, 'correction exceeds 64 KiB');
+    checkHardware(value.deviceId, correction.hardware);
+    requireValid(correction.hardware.agentVersion === value.hardware.agentVersion, 'correction agentVersion');
+    requireValid(atOrAfter(correction.updatedAt, value.submittedAt)
+      && (value.status === 'PENDING' || atOrAfter(value.reviewedAt, correction.updatedAt)), 'correction time');
   }
   return value;
+}
+
+function jsonSize(value: object): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
+
+function atOrAfter(left: ContractTimestamp, right: ContractTimestamp): boolean {
+  return left.seconds > right.seconds || (left.seconds === right.seconds && left.nanoseconds >= right.nanoseconds);
 }
 
 export function readComputer(value: unknown): ComputerDocument {

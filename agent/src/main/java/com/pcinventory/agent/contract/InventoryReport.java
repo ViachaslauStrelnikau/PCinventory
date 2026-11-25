@@ -14,6 +14,15 @@ public final class InventoryReport {
     public ContractTimestamp reviewedAt;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String reviewedBy;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Correction correction;
+
+    public static final class Correction {
+        public Hardware hardware;
+        public Assignment assignment;
+        public ContractTimestamp updatedAt;
+        public String updatedBy;
+    }
 
     public enum Status { PENDING, ACCEPTED, REJECTED }
 }

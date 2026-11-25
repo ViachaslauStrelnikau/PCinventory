@@ -1,4 +1,6 @@
-export type IdentitySource = 'SMBIOS' | 'LOCAL';
+export type AgentIdentitySource = 'SMBIOS' | 'LOCAL';
+export type IdentitySource = AgentIdentitySource | 'MANUAL';
+export type InventoryRole = 'COLLECTOR' | 'ADMIN' | 'USER';
 export type RamSlotTopology = 'COMPLETE' | 'PARTIAL' | 'UNKNOWN';
 export type RamTechnology =
   | 'DDR' | 'DDR2' | 'DDR2 FB-DIMM' | 'DDR3' | 'DDR4' | 'DDR5'
@@ -115,20 +117,29 @@ export interface Assignment {
 export type InventoryReport = {
   reportId: string;
   deviceId: string;
-  hardware: Hardware;
+  hardware: AgentHardware;
   assignment: Assignment;
   submittedAt: ContractTimestamp;
   submittedBy: string;
+  correction?: {
+    hardware: AgentHardware;
+    assignment: Assignment;
+    updatedAt: ContractTimestamp;
+    updatedBy: string;
+  };
 } & (
   | { status: 'PENDING'; reviewedAt?: never; reviewedBy?: never }
   | { status: 'ACCEPTED' | 'REJECTED'; reviewedAt: ContractTimestamp; reviewedBy: string }
 );
 
-export type ComputerDocument = Hardware & Required<Assignment> & {
+type AgentHardware = Hardware & { identitySource: AgentIdentitySource };
+
+export type ComputerDocument = Required<Assignment> & {
   deviceId: string;
-  status?: 'ACTIVE' | 'RETIRED';
-  lastReportId: string;
-  lastInventoryAt: ContractTimestamp;
   assignmentUpdatedAt: ContractTimestamp;
   assignmentUpdatedBy: string;
-};
+} & (
+  | (AgentHardware & { status?: 'ACTIVE' | 'RETIRED'; lastReportId: string; lastInventoryAt: ContractTimestamp })
+  | (Hardware & { identitySource: 'MANUAL'; agentVersion: 'manual'; status: 'ACTIVE' | 'RETIRED';
+      lastReportId: null; lastInventoryAt: null })
+);

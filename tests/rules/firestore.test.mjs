@@ -19,6 +19,7 @@ const collectorId = 'test-collector';
 const adminId = 'test-admin';
 const disabledCollectorId = 'test-disabled-collector';
 const disabledAdminId = 'test-disabled-admin';
+const userId = 'test-user';
 const deviceId = pendingFixture.deviceId;
 const settingsPath = 'settings/inventory';
 const reportPath = reportId => 'inventoryReports/' + reportId;
@@ -61,6 +62,7 @@ beforeEach(async () => {
     ['users/' + adminId]: { role: 'ADMIN', enabled: true },
     ['users/' + disabledCollectorId]: { role: 'COLLECTOR', enabled: false },
     ['users/' + disabledAdminId]: { role: 'ADMIN', enabled: false },
+    ['users/' + userId]: { role: 'USER', enabled: true },
     [settingsPath]: { acceptingReports: true },
   });
 });
@@ -94,11 +96,12 @@ function review(status = 'ACCEPTED') {
 }
 
 function acceptedCard(report, previous) {
+  const effective = report.correction ?? report;
   const assignment = Object.fromEntries(optionalAssignmentKeys.map(key => [key, previous?.[key] ?? '']));
-  Object.assign(assignment, report.assignment);
+  Object.assign(assignment, effective.assignment);
   const assignmentChanged = !previous || Object.keys(assignment).some(key => assignment[key] !== previous[key]);
   return {
-    ...report.hardware,
+    ...effective.hardware,
     ...assignment,
     deviceId: report.deviceId,
     status: previous?.status ?? 'ACTIVE',
@@ -333,7 +336,7 @@ test('rejection preserves the existing card and cannot later be accepted', async
   await assertFails(commitReview(pending, acceptedCard(pending, oldCard)));
 });
 
-test('the admin may edit assignment data but cannot replace technical fields or links', async () => {
+test('the admin may edit card data while report links and identity stay immutable', async () => {
   await submit();
   await accept(firstId);
   const cardRef = doc(admin, cardPath(deviceId));
@@ -341,10 +344,113 @@ test('the admin may edit assignment data but cannot replace technical fields or 
   await assertSucceeds(updateDoc(cardRef, { building: 'Корпус В', room: '020', status: 'RETIRED', ...audit() }));
   await assertFails(updateDoc(cardRef, { building: deleteField(), ...audit() }));
   await assertFails(updateDoc(cardRef, { building: ' ', ...audit() }));
-  await assertFails(updateDoc(cardRef, { cpuModel: 'Changed outside review', ...audit() }));
+  await assertSucceeds(updateDoc(cardRef, { cpuModel: 'Verified model', ...audit() }));
+  await assertSucceeds(updateDoc(cardRef, { cpuModel: 'Verified again', room: '022', ...audit() }));
+  await assertFails(updateDoc(cardRef, { cpuCores: 0, ...audit() }));
+  await assertFails(updateDoc(cardRef, { cpuModel: deleteField(), ...audit() }));
+  await assertFails(updateDoc(cardRef, { identitySource: 'LOCAL', ...audit() }));
   await assertFails(updateDoc(cardRef, { lastReportId: secondId, ...audit() }));
   await assertFails(updateDoc(cardRef, { status: deleteField(), ...audit() }));
   await assertFails(updateDoc(cardRef, { room: '021', ...audit(), assignmentUpdatedBy: collectorId }));
+});
+
+test('enabled users can read the registry and cannot access the intake or write records', async () => {
+  const user = env.authenticatedContext(userId).firestore();
+  await submit();
+  const pending = await submit(submission(secondId));
+  await accept(firstId);
+  assert.equal((await assertSucceeds(getDocsFromServer(collection(user, 'computers')))).size, 1);
+  await assertSucceeds(getDocFromServer(doc(user, cardPath(deviceId))));
+  await assertSucceeds(getDocFromServer(doc(user, 'users/' + userId)));
+  await assertFails(getDocsFromServer(collection(user, 'inventoryReports')));
+  await assertFails(getDocFromServer(doc(user, reportPath(secondId))));
+  await assertFails(getDocFromServer(doc(user, settingsPath)));
+  await assertFails(setDoc(doc(user, reportPath('6c021ce0-b1a0-4680-8780-f210f00f0009')),
+    submission('6c021ce0-b1a0-4680-8780-f210f00f0009', userId)));
+  await assertFails(updateDoc(doc(user, settingsPath), { acceptingReports: false }));
+  await assertFails(updateDoc(doc(user, reportPath(secondId)), review('REJECTED')));
+  await assertFails(setDoc(doc(user, cardPath(manualCard(pending).deviceId)), manualCard(pending)));
+  await assertFails(updateDoc(doc(user, cardPath(deviceId)), { status: 'RETIRED' }));
+  await seed({ ['users/' + userId]: { role: 'USER', enabled: false } });
+  await assertFails(getDocsFromServer(collection(user, 'computers')));
+});
+
+const manualId = 'manual-6c021ce0-b1a0-4680-8780-f210f00f0008';
+function manualCard(report) {
+  return {
+    ...acceptedCard(report),
+    deviceId: manualId,
+    identitySource: 'MANUAL',
+    agentVersion: 'manual',
+    lastReportId: null,
+    lastInventoryAt: null,
+  };
+}
+
+test('admin creates, archives, restores and finally purges a card', async () => {
+  const pending = await submit();
+  const ref = doc(admin, cardPath(manualId));
+  const card = manualCard(pending);
+  await assertFails(setDoc(ref, { ...card, lastReportId: firstId }));
+  await assertFails(setDoc(ref, { ...card, status: 'RETIRED' }));
+  await assertFails(setDoc(ref, { ...card, building: '' }));
+  await assertFails(setDoc(ref, { ...card, employeeName: 'Synthetic User', unexpected: true }));
+  await assertSucceeds(setDoc(ref, { ...card, employeeName: 'Synthetic User', department: 'Test', comment: 'Test' }));
+  assert.equal((await getDocFromServer(ref)).data().lastInventoryAt, null);
+  await assertFails(deleteDoc(ref));
+  const status = value => ({ status: value, assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: adminId });
+  const skipArchive = writeBatch(admin);
+  skipArchive.update(ref, status('RETIRED'));
+  skipArchive.delete(ref);
+  await assertFails(skipArchive.commit());
+  await assertSucceeds(updateDoc(ref, status('RETIRED')));
+  await assertFails(deleteDoc(doc(env.authenticatedContext(userId).firestore(), cardPath(manualId))));
+  await assertSucceeds(updateDoc(ref, status('ACTIVE')));
+  await assertFails(deleteDoc(ref));
+  await assertSucceeds(updateDoc(ref, status('RETIRED')));
+  await assertSucceeds(deleteDoc(ref));
+  assert.equal((await getDocFromServer(ref)).exists(), false);
+  await accept(firstId);
+  const accepted = doc(admin, cardPath(deviceId));
+  await assertSucceeds(updateDoc(accepted, status('RETIRED')));
+  await assertSucceeds(deleteDoc(accepted));
+  assert.equal((await getDocFromServer(doc(admin, reportPath(firstId)))).data().status, 'ACCEPTED');
+});
+
+test('only admin can save pending corrections and acceptance must use the saved version', async () => {
+  const original = await submit();
+  const ref = doc(admin, reportPath(firstId));
+  const correction = {
+    hardware: { ...original.hardware, cpuModel: 'Verified CPU', computerModel: 'Verified computer',
+      computerManufacturer: 'Verified manufacturer', motherboardSerial: 'VERIFIED' },
+    assignment: { ...original.assignment, building: 'Verified building', floor: '03', room: '011',
+      employeeName: 'Test Staff', department: 'Test Department', comment: 'Verified location' },
+    updatedAt: serverTimestamp(),
+    updatedBy: adminId,
+  };
+  await assertFails(setDoc(doc(collector, reportPath(secondId)), { ...submission(secondId), correction }));
+  await assertFails(updateDoc(doc(collector, reportPath(firstId)), { correction }));
+  await assertFails(updateDoc(doc(env.authenticatedContext(userId).firestore(), reportPath(firstId)), { correction }));
+  await assertFails(updateDoc(ref, { correction: { ...correction, updatedBy: collectorId } }));
+  await assertFails(updateDoc(ref, { correction: { ...correction, hardware: { ...correction.hardware,
+    identitySource: 'LOCAL' } } }));
+  await assertFails(updateDoc(ref, { correction: { ...correction, hardware: { ...correction.hardware, cpuCores: 0 } } }));
+  await assertFails(updateDoc(ref, { correction, 'hardware.cpuModel': 'Direct edit' }));
+  await assertSucceeds(updateDoc(ref, { correction }));
+  const corrected = (await getDocFromServer(ref)).data();
+  assert.deepEqual(corrected.hardware, original.hardware);
+  assert.deepEqual(corrected.assignment, original.assignment);
+  assert.equal(corrected.correction.updatedBy, adminId);
+  await assertFails(commitReview(original, acceptedCard(original)));
+  await assertFails(commitReview(corrected, acceptedCard(corrected), 'ACCEPTED', { ...review(), correction }));
+  await assertFails(commitReview(corrected, { ...acceptedCard(corrected), floor: original.assignment.floor }));
+  await assertSucceeds(accept(firstId));
+  const card = (await getDocFromServer(doc(admin, cardPath(deviceId)))).data();
+  assert.equal(card.cpuModel, 'Verified CPU');
+  assert.equal(card.building, 'Verified building');
+  assert.equal(card.floor, '03');
+  assert.equal(card.room, '011');
+  await assertFails(updateDoc(ref, { correction }));
 });
 
 test('new acceptance preserves omitted fields and the archived status, and rejects replay', async () => {

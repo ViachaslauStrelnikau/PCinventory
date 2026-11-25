@@ -9,7 +9,7 @@
     },
     "deviceId": {
       "type": "string",
-      "pattern": "^(?:local|smbios)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?![\\s\\S])"
+      "pattern": "^(?:local|smbios|manual)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?![\\s\\S])"
     },
     "uid": {
       "type": "string",
@@ -457,7 +457,8 @@
         "identitySource": {
           "enum": [
             "SMBIOS",
-            "LOCAL"
+            "LOCAL",
+            "MANUAL"
           ]
         },
         "hostname": {

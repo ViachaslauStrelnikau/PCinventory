@@ -28,12 +28,13 @@ class InventoryContractTest {
         for (JsonNode test : fixture("cases")) {
             tests.add(DynamicTest.dynamicTest(test.get("name").asText(), () -> {
                 String source = test.get("source").asText();
-                JsonNode document = fixture("computer".equals(source) ? source : source + "-report");
+                boolean computer = source.endsWith("computer");
+                JsonNode document = fixture(computer ? source : source + "-report");
                 applyChanges(document, test.get("changes"));
                 byte[] bytes = JSON.writeValueAsBytes(document);
                 JsonNode expectedError = test.get("expected");
                 if (expectedError.isNull()) {
-                    byte[] serialized = "computer".equals(source)
+                    byte[] serialized = computer
                             ? InventoryContract.writeComputer(InventoryContract.readComputer(bytes))
                             : InventoryContract.writeReport(InventoryContract.readReport(bytes));
                     assertTrue(document.equals((left, right) -> left.isNumber() && right.isNumber()
@@ -41,7 +42,7 @@ class InventoryContractTest {
                             JSON.readTree(serialized)), "DTO round trip must preserve the JSON fields and values");
                 } else {
                     IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-                        if ("computer".equals(source)) {
+                        if (computer) {
                             InventoryContract.readComputer(bytes);
                         } else {
                             InventoryContract.readReport(bytes);

@@ -2,6 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pcinventory.invalid/contracts/v1/computer-report.schema.json",
   "title": "PCinventory submitted report v1",
+  "$defs": {
+    "agentHardware": {
+      "type": "object",
+      "$ref": "shared.schema.json#/$defs/hardware",
+      "properties": {
+        "identitySource": { "enum": ["SMBIOS", "LOCAL"] }
+      },
+      "unevaluatedProperties": false
+    }
+  },
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,12 +28,12 @@
       "$ref": "shared.schema.json#/$defs/uuid"
     },
     "deviceId": {
-      "$ref": "shared.schema.json#/$defs/deviceId"
+      "type": "string",
+      "$ref": "shared.schema.json#/$defs/deviceId",
+      "pattern": "^(?:smbios|local)-"
     },
     "hardware": {
-      "type": "object",
-      "$ref": "shared.schema.json#/$defs/hardware",
-      "unevaluatedProperties": false
+      "$ref": "#/$defs/agentHardware"
     },
     "assignment": {
       "$ref": "shared.schema.json#/$defs/reportAssignment"
@@ -46,6 +56,17 @@
     },
     "reviewedBy": {
       "$ref": "shared.schema.json#/$defs/uid"
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hardware", "assignment", "updatedAt", "updatedBy"],
+      "properties": {
+        "hardware": { "$ref": "#/$defs/agentHardware" },
+        "assignment": { "$ref": "shared.schema.json#/$defs/reportAssignment" },
+        "updatedAt": { "$ref": "shared.schema.json#/$defs/timestamp" },
+        "updatedBy": { "$ref": "shared.schema.json#/$defs/uid" }
+      }
     }
   },
   "if": {

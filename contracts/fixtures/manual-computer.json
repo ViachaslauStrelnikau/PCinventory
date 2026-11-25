@@ -1,0 +1,135 @@
+{
+  "deviceId": "manual-6c021ce0-b1a0-4680-8780-f210f00f0008",
+  "schemaVersion": 1,
+  "agentVersion": "manual",
+  "identitySource": "MANUAL",
+  "hostname": "TEST-PC-01",
+  "cpuManufacturer": "Intel",
+  "cpuModel": "Intel Core i7-12700K",
+  "cpuModelRaw": "Intel(R) Core(TM) i7-12700K @ 3.60 GHz",
+  "cpuCores": 12,
+  "cpuThreads": 20,
+  "motherboardManufacturer": "Test Vendor",
+  "motherboardModel": "Test Board",
+  "motherboardSerial": null,
+  "computerManufacturer": null,
+  "computerModel": null,
+  "osName": "Windows 11 Pro",
+  "osVersion": "24H2",
+  "osBuild": "26100",
+  "osArchitecture": "x64",
+  "gpuModels": [
+    "Test GPU"
+  ],
+  "gpus": [
+    {
+      "model": "Test GPU",
+      "manufacturer": null,
+      "vramBytes": null
+    }
+  ],
+  "ramTotalBytes": 25769803776,
+  "ramTotalGiB": 24,
+  "ramType": "DDR4",
+  "ramSlotsTotal": 4,
+  "ramSlotsUsed": 2,
+  "ramSlotsFree": 2,
+  "ramSlotTopology": "COMPLETE",
+  "ramSlots": [
+    {
+      "slotId": "DIMM A1",
+      "bankLabel": "BANK 0",
+      "occupied": false,
+      "capacityBytes": null,
+      "memoryType": null,
+      "speedMtps": null,
+      "configuredSpeedMtps": null,
+      "manufacturer": null,
+      "partNumber": null,
+      "formFactor": null
+    },
+    {
+      "slotId": "DIMM A2",
+      "bankLabel": "BANK 1",
+      "occupied": true,
+      "capacityBytes": 8589934592,
+      "memoryType": "DDR4",
+      "speedMtps": 3600,
+      "configuredSpeedMtps": 3200,
+      "manufacturer": "Kingston",
+      "partNumber": "KF436C18BB/8",
+      "formFactor": "DIMM"
+    },
+    {
+      "slotId": "DIMM B1",
+      "bankLabel": "BANK 2",
+      "occupied": false,
+      "capacityBytes": null,
+      "memoryType": null,
+      "speedMtps": null,
+      "configuredSpeedMtps": null,
+      "manufacturer": null,
+      "partNumber": null,
+      "formFactor": null
+    },
+    {
+      "slotId": "DIMM B2",
+      "bankLabel": "BANK 3",
+      "occupied": true,
+      "capacityBytes": 17179869184,
+      "memoryType": "DDR4",
+      "speedMtps": null,
+      "configuredSpeedMtps": 3200,
+      "manufacturer": null,
+      "partNumber": null,
+      "formFactor": "DIMM"
+    }
+  ],
+  "storageTotalBytes": 500000000000,
+  "hasSsd": true,
+  "disks": [
+    {
+      "model": "Test SSD",
+      "type": "SSD",
+      "capacityBytes": 500000000000,
+      "interface": "NVMe"
+    }
+  ],
+  "networkMode": "MIXED",
+  "staticIpv4": [
+    "192.0.2.105"
+  ],
+  "networks": [
+    {
+      "name": "Ethernet 1",
+      "mode": "STATIC",
+      "staticIpv4": [
+        "192.0.2.105"
+      ]
+    },
+    {
+      "name": "Ethernet 2",
+      "mode": "DHCP",
+      "staticIpv4": []
+    }
+  ],
+  "warnings": [
+    "RAM_SPEED_UNAVAILABLE",
+    "GPU_ATTRIBUTES_UNAVAILABLE"
+  ],
+  "floor": "2",
+  "room": "010",
+  "inventoryNumber": "000123",
+  "employeeName": "",
+  "department": "",
+  "building": "Корпус А",
+  "comment": "",
+  "status": "ACTIVE",
+  "lastReportId": null,
+  "lastInventoryAt": null,
+  "assignmentUpdatedAt": {
+    "seconds": 1795600932,
+    "nanoseconds": 101000000
+  },
+  "assignmentUpdatedBy": "test-admin"
+}

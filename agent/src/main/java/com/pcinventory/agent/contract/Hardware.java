@@ -45,7 +45,7 @@ public class Hardware {
     public List<NetworkAdapter> networks;
     public List<WarningCode> warnings;
 
-    public enum IdentitySource { SMBIOS, LOCAL }
+    public enum IdentitySource { SMBIOS, LOCAL, MANUAL }
     public enum RamSlotTopology { COMPLETE, PARTIAL, UNKNOWN }
     public enum DiskType { SSD, HDD, UNKNOWN }
     public enum NetworkMode { DHCP, STATIC, MIXED, UNKNOWN }
