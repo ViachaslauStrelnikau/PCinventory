@@ -281,10 +281,16 @@
         }
       }
     },
+    "building": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
     "reportAssignment": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "building",
         "floor",
         "room"
       ],
@@ -315,9 +321,7 @@
           "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
         },
         "building": {
-          "type": "string",
-          "maxLength": 256,
-          "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+          "$ref": "#/$defs/building"
         },
         "comment": {
           "type": "string",
@@ -385,16 +389,7 @@
           ]
         },
         "building": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 256,
-              "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
-            },
-            {
-              "const": ""
-            }
-          ]
+          "$ref": "#/$defs/building"
         },
         "comment": {
           "anyOf": [

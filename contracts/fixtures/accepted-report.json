@@ -121,6 +121,7 @@
     ]
   },
   "assignment": {
+    "building": "Корпус А",
     "floor": "2",
     "room": "010",
     "inventoryNumber": "000123"

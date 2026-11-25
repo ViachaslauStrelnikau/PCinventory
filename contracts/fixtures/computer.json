@@ -122,7 +122,7 @@
   "inventoryNumber": "000123",
   "employeeName": "",
   "department": "",
-  "building": "",
+  "building": "Корпус А",
   "comment": "",
   "status": "ACTIVE",
   "lastReportId": "6c021ce0-b1a0-4680-8780-f210f00f0003",

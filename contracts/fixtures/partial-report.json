@@ -78,6 +78,7 @@
     ]
   },
   "assignment": {
+    "building": "Корпус Б",
     "floor": "1",
     "room": "010"
   },

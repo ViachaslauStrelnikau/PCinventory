@@ -100,7 +100,7 @@ public final class InventoryWindow extends JFrame {
         addField(fields, 0, "Инвентарный номер", 256);
         addField(fields, 1, "ФИО сотрудника", 256);
         addField(fields, 2, "Подразделение", 256);
-        addField(fields, 3, "Здание / корпус", 256);
+        addField(fields, 3, "Здание / корпус *", 256);
 
         JPanel location = new JPanel(new GridLayout(1, 2, 8, 0));
         location.add(locationField("Этаж *"));

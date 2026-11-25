@@ -39,6 +39,7 @@
     ],
     "warnings": [],
     "assignment": {
+      "building": "Корпус А",
       "inventoryNumber": "000123",
       "floor": "2",
       "room": "205"
@@ -80,6 +81,7 @@
       "Тип одного или нескольких накопителей недоступен"
     ],
     "assignment": {
+      "building": "Корпус Б",
       "floor": "1",
       "room": "010"
     }

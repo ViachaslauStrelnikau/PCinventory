@@ -103,12 +103,12 @@ export interface Hardware {
 }
 
 export interface Assignment {
+  building: string;
   floor: string;
   room: string;
   inventoryNumber?: string;
   employeeName?: string;
   department?: string;
-  building?: string;
   comment?: string;
 }
 

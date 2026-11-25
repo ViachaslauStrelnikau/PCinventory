@@ -136,11 +136,75 @@
     "source": "pending",
     "changes": [
       {
-        "path": "/assignment/building",
+        "path": "/assignment/department",
         "value": ""
       }
     ],
     "expected": "JSON Schema"
+  },
+  {
+    "name": "missing report building",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/building"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "whitespace-only report building",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/building",
+        "value": " \t\u00a0"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "missing computer building",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/building"
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "empty computer building",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/building",
+        "value": ""
+      }
+    ],
+    "expected": "JSON Schema"
+  },
+  {
+    "name": "accepts a new building name in the report",
+    "source": "pending",
+    "changes": [
+      {
+        "path": "/assignment/building",
+        "value": "Корпус В"
+      }
+    ],
+    "expected": null
+  },
+  {
+    "name": "accepts a new building name in the computer",
+    "source": "computer",
+    "changes": [
+      {
+        "path": "/building",
+        "value": "Корпус В"
+      }
+    ],
+    "expected": null
   },
   {
     "name": "unknown nested hardware field",

@@ -91,7 +91,7 @@ computer-inventory/
 
 ## 4. Сценарии использования
 
-**UC-01 Первичная инвентаризация.** Пользователь запускает EXE из read-only сетевой папки → нажимает «Прочитать конфигурацию» → проверяет read-only данные → вводит этаж и кабинет (остальные поля при наличии) → нажимает «Зарегистрировать». Агент авторизуется и отправляет отчёт. Окно остаётся открытым с результатом. Администратор создаёт карточку компьютера, вручную приняв отчёт после проверки.
+**UC-01 Первичная инвентаризация.** Пользователь запускает EXE из read-only сетевой папки → нажимает «Прочитать конфигурацию» → проверяет read-only данные → вводит здание, этаж и кабинет (остальные поля при наличии) → нажимает «Зарегистрировать». Агент авторизуется и отправляет отчёт. Окно остаётся открытым с результатом. Администратор создаёт карточку компьютера, вручную приняв отчёт после проверки.
 
 **UC-02 Повторная инвентаризация.** Повторное чтение не очищает форму. При повторной регистрации создаётся новый отчёт; при принятии обновляется тот же компьютер по стабильному deviceId, а не создаётся дубль. Обновляются технические данные и подтверждённые изменения местоположения/учётных данных. Пустые необязательные поля не стирают уже сохранённые значения.
 
@@ -173,7 +173,7 @@ GPU: обязательная функциональность сбора (best 
 │ Инвентарный номер    [000125                                  ] │
 │ ФИО сотрудника       [                                        ] │
 │ Подразделение        [                                        ] │
-│ Здание / корпус      [                                        ] │
+│ Здание / корпус *    [                                        ] │
 │ Этаж *               [2       ]  Кабинет * [205               ] │
 │ Примечание           [                                        ] │
 │                      [                                        ] │
@@ -200,12 +200,12 @@ GPU: обязательная функциональность сбора (best 
 | Инвентарный номер | JTextField, строка, сохранять ведущие нули | Нет |
 | ФИО сотрудника | JTextField | Нет |
 | Подразделение | JTextField | Нет |
-| Здание / корпус | JTextField | Только если организация использует несколько зданий (подлежит уточнению) |
+| Здание / корпус | JTextField | Да |
 | Этаж | JTextField | Да |
 | Кабинет | JTextField | Да |
 | Примечание | JTextArea в JScrollPane, 3 строки по умолчанию, перенос слов, до 2000 символов | Нет |
 
-Этаж и кабинет — строки, не числа: поддерживать «Цоколь», «2А», «205/1», «Серверная». Пробельная строка считается пустой. Обязательность здания — единая настройка организации (не выбор пользователя); до уточнения предполагается одно здание. При повторной отправке пустые необязательные поля означают «не изменять» существующие сведения; намеренная очистка возможна только через web администратором. Сборщик не редактирует статус и служебные поля.
+Этаж и кабинет — строки, не числа: поддерживать «Цоколь», «2А», «205/1», «Серверная». Пробельная строка считается пустой. Здание обязательно во всех отчётах и карточках. Сейчас офисы находятся в двух зданиях. Название или адрес здания вводится строкой, чтобы новые здания можно было добавить без изменения схемы. При повторной отправке пустые необязательные поля означают «не изменять» существующие сведения; намеренная очистка возможна только через web администратором. Сборщик не редактирует статус и служебные поля.
 
 #### 5.3.4 Поведение и состояния
 
@@ -285,7 +285,7 @@ Windows 7/8.1 и некоторые выпуски Windows 10 сняты с по
   "agentVersion": "1.0.0",
   "employeeName": "",
   "department": "",
-  "building": "",
+  "building": "Корпус А",
   "floor": "2",
   "room": "205",
   "inventoryNumber": "",
@@ -294,7 +294,7 @@ Windows 7/8.1 и некоторые выпуски Windows 10 сняты с по
 }
 ```
 
-Дополнительные поля принятой карточки: `lastInventoryAt` (серверный `submittedAt` принятого отчёта), `lastReportId`, `assignmentUpdatedAt`, `assignmentUpdatedBy` (UID администратора). Статус ACTIVE/RETIRED; отсутствие трактовать как ACTIVE. `gpuModels` — нормализованный массив моделей для поиска/фильтрации, производный от `gpus`, не редактируется независимо. `department`, `building`, `floor`, `room`, `employeeName`, `inventoryNumber`, `comment` — строки; обязательные floor/room не пусты, building условно обязателен. Удаление компьютеров в MVP не реализуется, используется RETIRED.
+Дополнительные поля принятой карточки: `lastInventoryAt` (серверный `submittedAt` принятого отчёта), `lastReportId`, `assignmentUpdatedAt`, `assignmentUpdatedBy` (UID администратора). Статус ACTIVE/RETIRED; отсутствие трактовать как ACTIVE. `gpuModels` — нормализованный массив моделей для поиска/фильтрации, производный от `gpus`, не редактируется независимо. `department`, `building`, `floor`, `room`, `employeeName`, `inventoryNumber`, `comment` — строки; обязательные building, floor и room должны содержать непустые значения. Удаление компьютеров в MVP не реализуется, используется RETIRED.
 
 Входящий отчёт: `reportId` (UUID, совпадает с ID документа), `deviceId`, `hardware` (полный технический DTO, включая identitySource, hostname, schemaVersion, agentVersion и плоские поля из примера), `assignment` (учётные поля без status; пустые необязательные поля опускаются), `submittedAt` (REQUEST_TIME), `submittedBy` (UID сборщика), `status` = PENDING. Не включать admin-метаданные в create. При обработке ADMIN добавляет `reviewedAt`, `reviewedBy`, меняет status на ACCEPTED/REJECTED; исходный payload неизменен. Принятая карточка остаётся плоской для аналитики. JSON Schema отчёта и документа — разные контракты; окончательные поля после PoC. Отчёты не являются историей изменений оборудования; это очередь регистрации, с согласованным сроком хранения и очисткой доверенным оператором.
 
@@ -330,7 +330,7 @@ Firebase Authentication: email/password. Учетные записи созда�
 
 ### 7.2 Security Rules — обязательная спецификация модели приёма
 
-Deny by default. Проверять `users/{uid}.role`, enabled и, для create отчёта, `settings/inventory.acceptingReports`. COLLECTOR может только создать `inventoryReports/{reportId}`: точный перечень полей, reportId совпадает с ID, submittedBy == request.auth.uid, submittedAt == request.time, status=PENDING, обязательные assignment.floor/assignment.room не пусты, условие здания согласно утверждённой конфигурации, status компьютера и поля review отсутствуют. Отдельно запретить get/list/update/delete. ADMIN может читать отчёты и менять только status и review-метаданные, переход только PENDING → ACCEPTED/REJECTED, reviewedAt == request.time, reviewedBy == request.auth.uid. Исходные hardware/assignment/deviceId/submit-поля неизменяемы.
+Deny by default. Проверять `users/{uid}.role`, enabled и, для create отчёта, `settings/inventory.acceptingReports`. COLLECTOR может только создать `inventoryReports/{reportId}`: точный перечень полей, reportId совпадает с ID, submittedBy == request.auth.uid, submittedAt == request.time, status=PENDING, обязательные assignment.building, assignment.floor и assignment.room содержат непустые значения, status компьютера и поля review отсутствуют. Отдельно запретить get/list/update/delete. ADMIN может читать отчёты и менять только status и review-метаданные, переход только PENDING → ACCEPTED/REJECTED, reviewedAt == request.time, reviewedBy == request.auth.uid. Исходные hardware/assignment/deviceId/submit-поля неизменяемы.
 
 ADMIN принимает отчёт транзакцией Firestore (см. §9.4); `computers` create/update технических полей разрешён только в рамках принятия соответствующего PENDING отчёта. Спроектировать и протестировать междокументные проверки `get`/`getAfter`: согласованный deviceId, lastReportId, lastInventoryAt, переход статуса, соответствие технических полей исходному отчёту, неизменность идентичности. Для независимой правки карточки разрешены лишь организационные поля, status и assignmentUpdatedAt/By; timestamp == request.time, UID совпадает. Не разрешать потерю обязательных полей. Точную реализуемость правил и лимиты document access calls подтвердить Emulator Suite до интеграции; если строгая связь недостижима, не ослаблять правила молча, документировать блокер и согласовать решение.
 
@@ -439,7 +439,7 @@ Stage 0: отдельно проверить Windows 7 SP1 x86 и x64, Windows 8
 | AC-29 | Windows x64 с RAM >4 GiB, агент x86 | Полный установленный объём и правильная архитектура ОС; ошибки/ограничения обнаружены PoC |
 | AC-30 | Упаковка и runtime | Версии, лицензии, SHA-256, отсутствие зависимости от внешнего JRE; при наличии сквозных exit codes проверена их передача |
 | AC-31 | Открытие окна и ручное чтение | Одно окно, ровно две основные кнопки, без автоматической отправки; read-only поля копируемы |
-| AC-32 | Валидация места | Пустые этаж/кабинет блокируют регистрацию; остальные поля необязательны, здание по конфигурации; пробелы не считаются значением |
+| AC-32 | Валидация места | Для регистрации нужны здание, этаж и кабинет. Поля из одних пробелов считаются пустыми |
 | AC-33 | Повтор чтения и ошибка отправки | Введённые поля сохраняются, EDT не блокируется, кнопки блокируются на время операции, результат остаётся видимым |
 | AC-34 | RAM с известной/неизвестной скоростью | Достоверная скорость с корректной единицей; при отсутствии строки скорости нет; нет вымышленных слотов |
 | AC-35 | Один/несколько GPU и неизвестный VRAM | Отдельная строка на адаптер, неизвестный VRAM не выводится, модели сохраняются и доступны для поиска |
@@ -457,7 +457,7 @@ Unit: нормализация CPU, RAM bytes/GiB, нормализация сл
 - Подтвердить разрешение организации на передачу ФИО, внутренних IP и характеристик в Google Cloud; определить регион, срок хранения, круг администраторов и политику удаления. До согласования использовать только синтетические данные.
 - Проверить фактический парк Windows и доступ к Firebase. Минимум Windows 7 SP1, одна x86 сборка; точные версии JRE/JNA/OSHI/SFX, TLS, UNC и WOW64 — обязательный PoC. Если безопасная совместимость не достигнута, согласовать альтернативу до релиза.
 - Подтвердить способ выдачи credentials сборщика без участия обычного пользователя. Постоянный пароль не встраивается. До согласования используется операторский ввод в dev; production blocked. Зафиксировать способ выдачи credentials до этапа 3.
-- Уточнить, одно ли здание в организации: пока обязательны этаж и кабинет, здание опционально. При нескольких зданиях сделать его обязательным во всех контрактах/UI/rules. Согласовать срок хранения входящих отчётов.
+- Согласовать срок хранения входящих отчётов.
 - Проверить уникальность SMBIOS на пилоте. При массовом клонировании потребуется более надёжный идентификатор.
 - Подтвердить реальное число ПК и администраторов, лимиты Spark и допустимость клиентской загрузки всей коллекции; при росте вводить пагинацию/агрегации на стороне сервера.
 - Выбрать стабильные версии Angular/Material, OSHI, JNA, Jackson, JRE, SFX, SDK и библиотек после проверки совместимости. Уточнить окончательные технические поля, включая достоверность слотов и семантику скорости RAM и достоверность GPU/VRAM, по тестовым отчётам; не менять согласованные требования без причины. Это дизайн, не реализованный и не протестированный продукт.
@@ -481,4 +481,4 @@ Unit: нормализация CPU, RAM bytes/GiB, нормализация сл
 
 ## 15. Стартовая инструкция кодирующему агенту
 
-Read DESIGN.md completely. Treat the MVP scope, data contract, security model and acceptance criteria as requirements. Inspect the repository before changing files. First produce a short implementation plan and a task list for stages 0–3. Record unresolved decisions in docs/decisions.md. Implement stage 0 (Bootstrap and Compatibility PoC) first. Do not assume Windows 7 SP1 or x86 runtime compatibility without evidence. Use a single self-contained EXE, no installation, read-only UNC deployment. After the collector study, finalize DATA_MODEL.md and shared schemas before integrating Firebase and building the web UI. RAM slot counts and available per-slot/module details are mandatory features; never invent physical slot labels or collect maximum supported memory capacity. GPU inventory is mandatory (best effort for individual attributes). Implement the single-screen Swing form with two primary buttons, read-only hardware, editable assignment, required floor and room, optional remaining fields except building if required by organization. Omit unknown RAM speed and GPU VRAM in UI. Render physical disks separately. Use the approved create-only inbox with mandatory manual review. Confirm collector credential delivery before stage 3. Work through the stages in order, with tests and review at each gate. Do not introduce a custom backend, Telegram, QR codes, paid cloud services or permanent embedded credentials. Use synthetic data and Firebase Emulator Suite until the owner approves production configuration. Do not deploy, change billing or modify existing cloud resources without explicit approval. Keep the implementation simple and avoid speculative abstractions. Report test results and limitations accurately.
+Read DESIGN.md completely. Treat the MVP scope, data contract, security model and acceptance criteria as requirements. Inspect the repository before changing files. First produce a short implementation plan and a task list for stages 0–3. Record unresolved decisions in docs/decisions.md. Implement stage 0 (Bootstrap and Compatibility PoC) first. Do not assume Windows 7 SP1 or x86 runtime compatibility without evidence. Use a single self-contained EXE, no installation, read-only UNC deployment. After the collector study, finalize DATA_MODEL.md and shared schemas before integrating Firebase and building the web UI. RAM slot counts and available per-slot/module details are mandatory features; never invent physical slot labels or collect maximum supported memory capacity. GPU inventory is mandatory (best effort for individual attributes). Implement the single-screen Swing form with two primary buttons, read-only hardware, editable assignment, required building, floor and room, and optional remaining fields. Omit unknown RAM speed and GPU VRAM in UI. Render physical disks separately. Use the approved create-only inbox with mandatory manual review. Confirm collector credential delivery before stage 3. Work through the stages in order, with tests and review at each gate. Do not introduce a custom backend, Telegram, QR codes, paid cloud services or permanent embedded credentials. Use synthetic data and Firebase Emulator Suite until the owner approves production configuration. Do not deploy, change billing or modify existing cloud resources without explicit approval. Keep the implementation simple and avoid speculative abstractions. Report test results and limitations accurately.
