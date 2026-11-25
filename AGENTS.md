@@ -7,7 +7,7 @@
 - Keep the Swing agent to one window and two primary actions. Read hardware after explicit user action. Preserve assignment input across reads and failures. Floor and room are required. Preserve string identifiers and leading zeros.
 - Collect RAM slots, GPU adapters, and individual physical disks. Preserve unknowns, omit unreliable RAM speed and VRAM, and never invent slot labels. Use only approved devices and synthetic fixtures during development.
 - Approve the shared contract after collector research and before Firebase integration or web features. Keep schemas, Java DTOs, TypeScript types, fixtures, and rules aligned.
-- Confirm the inbox workflow and collector credential delivery before Firebase integration. Use the local emulator for development. Keep secrets and tokens out of the repository, logs, and artifacts. Require explicit authorization before changing cloud resources, deploying, or changing billing.
+- Use the approved inbox workflow with mandatory manual review. Confirm collector credential delivery before Firebase integration. Use the local emulator for development. Keep secrets and tokens out of the repository, logs, and artifacts. Require explicit authorization before changing cloud resources, deploying, or changing billing.
 - Keep agent and web builds independent. Pin build dependencies and lock npm dependencies. Run relevant tests and record Windows PoC evidence in `docs/COMPATIBILITY.md`.
 
 ## Library and platform documentation

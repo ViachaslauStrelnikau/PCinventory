@@ -8,7 +8,7 @@
 
 Создать систему инвентаризации компьютеров организации: пользователь запускает Windows-утилиту, он читает конфигурацию, заполняет местоположение и при необходимости другие учётные данные, затем регистрирует отчёт в Cloud Firestore. Администратор через веб-интерфейс просматривает, ищет, фильтрует и анализирует компьютеры, дополняет карточки организационными сведениями и экспортирует данные.
 
-Изменения v1.2: одноэкранная форма с двумя кнопками, ручные учётные поля, GPU, карточки RAM с условным отображением скорости, отдельные строки физических дисков. Для защиты основной базы предлагается приём отчётов с последующим подтверждением администратором; это архитектурное решение подлежит утверждению до интеграции Firebase (см. §7 и §13).
+Изменения v1.2: одноэкранная форма с двумя кнопками, ручные учётные поля, GPU, карточки RAM с условным отображением скорости, отдельные строки физических дисков. Для защиты основного реестра каждый отчёт проходит ручную проверку администратором (см. §7 и §9.4).
 
 MVP рассчитан ориентировочно на 100–1000 компьютеров и небольшое число администраторов. Это проектное допущение, не установленный лимит.
 
@@ -91,7 +91,7 @@ computer-inventory/
 
 ## 4. Сценарии использования
 
-**UC-01 Первичная инвентаризация.** Пользователь запускает EXE из read-only сетевой папки → нажимает «Прочитать конфигурацию» → проверяет read-only данные → вводит этаж и кабинет (остальные поля при наличии) → нажимает «Зарегистрировать». Агент авторизуется и отправляет отчёт. Окно остаётся открытым с результатом. При предложенной модели входящих отчётов запись компьютера создаёт администратор после проверки.
+**UC-01 Первичная инвентаризация.** Пользователь запускает EXE из read-only сетевой папки → нажимает «Прочитать конфигурацию» → проверяет read-only данные → вводит этаж и кабинет (остальные поля при наличии) → нажимает «Зарегистрировать». Агент авторизуется и отправляет отчёт. Окно остаётся открытым с результатом. Администратор создаёт карточку компьютера, вручную приняв отчёт после проверки.
 
 **UC-02 Повторная инвентаризация.** Повторное чтение не очищает форму. При повторной регистрации создаётся новый отчёт; при принятии обновляется тот же компьютер по стабильному deviceId, а не создаётся дубль. Обновляются технические данные и подтверждённые изменения местоположения/учётных данных. Пустые необязательные поля не стирают уже сохранённые значения.
 
@@ -230,7 +230,7 @@ Windows 7/8.1 и некоторые выпуски Windows 10 сняты с по
 
 ## 6. Firebase: модель данных
 
-Коллекция `computers/{deviceId}` — один принятый документ на компьютер. Предлагаемая коллекция `inventoryReports/{reportId}` — входящие неизменяемые сборщиком отчёты (см. §7). Коллекция `users/{uid}` — назначенные администратором роли; управление через Firebase Console, не через публичное приложение.
+Коллекция `computers/{deviceId}` — один принятый документ на компьютер. Коллекция `inventoryReports/{reportId}` — входящие неизменяемые сборщиком отчёты (см. §7). Коллекция `users/{uid}` — назначенные администратором роли; управление через Firebase Console, не через публичное приложение.
 
 Типы JSON ниже логические. Timestamp передаётся как Firestore Timestamp, не строка. Числа ёмкости — целые байты; поля статистики числовые. Nullable поля обязательны в полном техническом отчёте, null = неизвестно, [] = достоверно пустой список либо недоступный перечень с предупреждением. Местоположение обязательно в новых отчётах и принятых карточках; исторические тестовые документы без местоположения явно помечаются как неполные. Остальные организационные поля необязательны. Пример:
 
@@ -306,7 +306,7 @@ Windows 7/8.1 и некоторые выпуски Windows 10 сняты с по
 
 Firebase Authentication: email/password. Учетные записи создаёт администратор. Роль определяется по `users/{uid}` с `role` (COLLECTOR или ADMIN) и `enabled` (boolean). Сам факт входа не даёт доступа. Клиентам запрещено изменять роли; собственный документ роли доступен владельцу на чтение, list запрещён.
 
-**Предлагаемое решение v1.2, требует подтверждения владельца до этапа Firebase integration:** сборщик создаёт только входящие отчёты, ADMIN проверяет и принимает их в `computers`. Это сохраняет модель без собственного backend и защищает карточки от прямого изменения общей учётной записью. Предыдущий прямой upsert не использовать совместно с этим режимом. Если владелец выберет прямую регистрацию, отдельным ADR определить права изменения организационных полей, риски подмены и переписать rules/протокол/AC до реализации. Не реализовывать обе модели одновременно.
+**Утверждённая модель приёма.** Сборщик создаёт отчёт со статусом `PENDING`. Администратор вручную проверяет каждый отчёт во фронтенде. Только явное принятие создаёт или обновляет карточку в `computers`. Отклонение закрывает отчёт без изменения карточки.
 
 | Операция | Без роли / disabled | COLLECTOR | ADMIN |
 |---|---|---|---|
@@ -326,7 +326,7 @@ Firebase Authentication: email/password. Учетные записи созда�
 
 Общий COLLECTOR не доказывает принадлежность отчёта конкретному ПК: возможны ложные отчёты и расход квот. Ручная проверка, ограничение прав, закрытие приёма, отключение роли и смена пароля/отзыв сессий уменьшают риск, но не устраняют его. Не принимать отчёты автоматически. При неприемлемости риска остановить production и согласовать другую архитектуру.
 
-### 7.2 Security Rules — обязательная спецификация предложенной модели
+### 7.2 Security Rules — обязательная спецификация модели приёма
 
 Deny by default. Проверять `users/{uid}.role`, enabled и, для create отчёта, `settings/inventory.acceptingReports`. COLLECTOR может только создать `inventoryReports/{reportId}`: точный перечень полей, reportId совпадает с ID, submittedBy == request.auth.uid, submittedAt == request.time, status=PENDING, обязательные assignment.floor/assignment.room не пусты, условие здания согласно утверждённой конфигурации, status компьютера и поля review отсутствуют. Отдельно запретить get/list/update/delete. ADMIN может читать отчёты и менять только status и review-метаданные, переход только PENDING → ACCEPTED/REJECTED, reviewedAt == request.time, reviewedBy == request.auth.uid. Исходные hardware/assignment/deviceId/submit-поля неизменяемы.
 
@@ -350,7 +350,7 @@ Java 8 HttpsURLConnection, UTF-8, таймауты. Public config: projectId, ap
 
 ## 9. Web: функциональный дизайн
 
-Angular SPA на Firebase Hosting, маршруты `/login`, `/computers`, `/computers/:deviceId`, `/statistics`, `/reports`, `/settings` (при подтверждении модели входящих отчётов). Route guards для UX; безопасность обеспечивают rules, не guards. Firebase Web SDK, сессия авторизованного администратора, кнопка выхода. Не включать постоянный offline-cache корпоративных данных в MVP. Показать загрузку, пустое состояние, ошибку доступа/сети и кнопку обновления. Не показывать старый список как актуальный после ошибки обновления.
+Angular SPA на Firebase Hosting, маршруты `/login`, `/computers`, `/computers/:deviceId`, `/statistics`, `/reports`, `/settings`. Route guards для UX; безопасность обеспечивают rules, не guards. Firebase Web SDK, сессия авторизованного администратора, кнопка выхода. Не включать постоянный offline-cache корпоративных данных в MVP. Показать загрузку, пустое состояние, ошибку доступа/сети и кнопку обновления. Не показывать старый список как актуальный после ошибки обновления.
 
 ### 9.1 Таблица компьютеров
 
@@ -370,7 +370,7 @@ Angular SPA на Firebase Hosting, маршруты `/login`, `/computers`, `/co
 
 Экспорт XLSX: текущий отфильтрованный список, отдельные колонки, в том числе всего/занято/свободно слотов RAM, явные единицы измерения, даты и числовые типы, идентификаторы как строки. Внешний ввод не трактовать как формулы; тестировать строки с =, +, -, @. Экспорт доступен только ADMIN. Не отправлять файл во внешние сервисы.
 
-### 9.4 Входящие отчёты и управление приёмом (предлагаемый workflow)
+### 9.4 Входящие отчёты и управление приёмом
 
 Список PENDING отчётов, поиск по hostname/deviceId, дата отправки, местоположение, краткая конфигурация. Карточка сравнения с текущим компьютером; показать изменённые технические и организационные поля, неизвестные значения, предупреждения и конфликты идентификации. ADMIN явно принимает или отклоняет. Никакого автоматического импорта. При первом принятии создать ACTIVE компьютер; при повторном — обновить по deviceId, не менять существующий status, не стирать отсутствующие/пустые необязательные учётные поля. Явно подтвердить изменение местоположения и прочих непустых учётных полей. Старый отчёт (submittedAt раньше последней принятой инвентаризации) не может молча перезаписать свежие данные: показать конфликт и предложить отклонить. При совпадении timestamps применять детерминированный порядок или явно разрешать конфликт. Не принимать отчёт с неподдерживаемой схемой, конфликтом identity или недостоверными обязательными данными.
 
@@ -391,7 +391,7 @@ Angular SPA на Firebase Hosting, маршруты `/login`, `/computers`, `/co
 | 0. Bootstrap + Compatibility PoC | Структура, AGENTS.md, README, CI; Java 8 x86, OSHI/JNA/WMI, Swing, пробный single EXE и HTTPS к dev Firebase на целевых ОС | Зафиксированы версии и результаты в COMPATIBILITY.md; выпуск заблокирован при несовместимости |
 | 1. Collector + исследование | Локальный сбор CPU/RAM (включая слоты), GPU, дисков, сети, identity; тестовые отчёты разных ПК без production-данных | Проверены свойства и ограничения источников, особенно Windows 7 и RAM; согласованы неизвестные значения |
 | 2. Data Contract | DATA_MODEL.md, JSON Schema, Java DTO, TS types, фикстуры, правила нормализации | Схема утверждена до Firebase/Web, общие fixture-тесты проходят |
-| 3. Firebase dev | Emulator, users/computers/inventoryReports/settings, security rules (после утверждения ADR), SECURITY.md, отрицательные тесты | Ни одной неразрешённой операции в пределах модели доступа |
+| 3. Firebase dev | Emulator, users/computers/inventoryReports/settings, security rules, SECURITY.md, отрицательные тесты | Ни одной неразрешённой операции в пределах модели доступа |
 | 4. Agent integration | Auth REST, Firestore codec/commit, retry, одноэкранный Swing, валидация формы | Отправка и повтор без дублей подтверждены emulator |
 | 5. Web | Login, таблица, фильтры, карточка и слоты RAM, GPU, приём/отклонение отчётов, административное сохранение | E2E с тестовыми данными |
 | 6. Analytics | CPU/RAM, статистика слотов, дополнительные графики, XLSX | Проверка группировок и экспорта |
@@ -454,7 +454,7 @@ Unit: нормализация CPU, RAM bytes/GiB, нормализация сл
 
 - Подтвердить разрешение организации на передачу ФИО, внутренних IP и характеристик в Google Cloud; определить регион, срок хранения, круг администраторов и политику удаления. До согласования использовать только синтетические данные.
 - Проверить фактический парк Windows и доступ к Firebase. Минимум Windows 7 SP1, одна x86 сборка; точные версии JRE/JNA/OSHI/SFX, TLS, UNC и WOW64 — обязательный PoC. Если безопасная совместимость не достигнута, согласовать альтернативу до релиза.
-- Подтвердить способ выдачи credentials сборщика без участия обычного пользователя. Постоянный пароль не встраивается. До согласования используется операторский ввод в dev; production blocked. Утвердить очередь `inventoryReports` + ручное принятие (предлагаемый вариант), либо прямую регистрацию с пересмотром security model. Зафиксировать ADR до этапа 3; не реализовывать production auth/запись до решения.
+- Подтвердить способ выдачи credentials сборщика без участия обычного пользователя. Постоянный пароль не встраивается. До согласования используется операторский ввод в dev; production blocked. Зафиксировать способ выдачи credentials до этапа 3.
 - Уточнить, одно ли здание в организации: пока обязательны этаж и кабинет, здание опционально. При нескольких зданиях сделать его обязательным во всех контрактах/UI/rules. Согласовать срок хранения входящих отчётов.
 - Проверить уникальность SMBIOS на пилоте. При массовом клонировании потребуется более надёжный идентификатор.
 - Подтвердить реальное число ПК и администраторов, лимиты Spark и допустимость клиентской загрузки всей коллекции; при росте вводить пагинацию/агрегации на стороне сервера.
@@ -479,4 +479,4 @@ Unit: нормализация CPU, RAM bytes/GiB, нормализация сл
 
 ## 15. Стартовая инструкция кодирующему агенту
 
-Read DESIGN.md completely. Treat the MVP scope, data contract, security model and acceptance criteria as requirements. Inspect the repository before changing files. First produce a short implementation plan and a task list for stages 0–3. Record unresolved decisions in docs/decisions.md. Implement stage 0 (Bootstrap and Compatibility PoC) first. Do not assume Windows 7 SP1 or x86 runtime compatibility without evidence. Use a single self-contained EXE, no installation, read-only UNC deployment. After the collector study, finalize DATA_MODEL.md and shared schemas before integrating Firebase and building the web UI. RAM slot counts and available per-slot/module details are mandatory features; never invent physical slot labels or collect maximum supported memory capacity. GPU inventory is mandatory (best effort for individual attributes). Implement the single-screen Swing form with two primary buttons, read-only hardware, editable assignment, required floor and room, optional remaining fields except building if required by organization. Omit unknown RAM speed and GPU VRAM in UI. Render physical disks separately. Confirm the proposed create-only inbox and credentials ADR before stage 3; do not silently revert to direct upsert or implement both paths. Work through the stages in order, with tests and review at each gate. Do not introduce a custom backend, Telegram, QR codes, paid cloud services or permanent embedded credentials. Use synthetic data and Firebase Emulator Suite until the owner approves production configuration. Do not deploy, change billing or modify existing cloud resources without explicit approval. Keep the implementation simple and avoid speculative abstractions. Report test results and limitations accurately.
+Read DESIGN.md completely. Treat the MVP scope, data contract, security model and acceptance criteria as requirements. Inspect the repository before changing files. First produce a short implementation plan and a task list for stages 0–3. Record unresolved decisions in docs/decisions.md. Implement stage 0 (Bootstrap and Compatibility PoC) first. Do not assume Windows 7 SP1 or x86 runtime compatibility without evidence. Use a single self-contained EXE, no installation, read-only UNC deployment. After the collector study, finalize DATA_MODEL.md and shared schemas before integrating Firebase and building the web UI. RAM slot counts and available per-slot/module details are mandatory features; never invent physical slot labels or collect maximum supported memory capacity. GPU inventory is mandatory (best effort for individual attributes). Implement the single-screen Swing form with two primary buttons, read-only hardware, editable assignment, required floor and room, optional remaining fields except building if required by organization. Omit unknown RAM speed and GPU VRAM in UI. Render physical disks separately. Use the approved create-only inbox with mandatory manual review. Confirm collector credential delivery before stage 3. Work through the stages in order, with tests and review at each gate. Do not introduce a custom backend, Telegram, QR codes, paid cloud services or permanent embedded credentials. Use synthetic data and Firebase Emulator Suite until the owner approves production configuration. Do not deploy, change billing or modify existing cloud resources without explicit approval. Keep the implementation simple and avoid speculative abstractions. Report test results and limitations accurately.
