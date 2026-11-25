@@ -2,18 +2,22 @@
 param(
     [string]$Maven = 'mvn.cmd',
     [string]$SevenZip = '7z.exe',
-    [string]$DownloadCache
+    [string]$DownloadCache,
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $agent = Split-Path -Parent $PSScriptRoot
 $target = Join-Path $agent 'target'
-$output = Join-Path $target 'windows'
+if (-not $OutputDirectory) {
+    $OutputDirectory = Join-Path $target 'windows'
+}
 if (-not $DownloadCache) {
     $DownloadCache = Join-Path $target 'downloads'
 }
-New-Item -ItemType Directory -Path $DownloadCache, $output -Force | Out-Null
+New-Item -ItemType Directory -Path $DownloadCache, $OutputDirectory -Force | Out-Null
 $DownloadCache = (Resolve-Path -LiteralPath $DownloadCache).Path
+$output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
 function Get-VerifiedArchive([string]$Name, [string]$Url, [string]$Sha256) {
     $path = Join-Path $DownloadCache $Name

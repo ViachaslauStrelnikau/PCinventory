@@ -88,12 +88,8 @@ final class HardwarePanel extends JPanel {
         if (!probe.modules.isEmpty()) {
             JPanel cards = new JPanel(new GridLayout(0, Math.min(4, probe.modules.size()), 5, 5));
             for (WindowsHardwareProbe.MemoryModule module : probe.modules) {
-                String speed = null;
-                if (module.configuredMtps > 0) {
-                    speed = module.configuredMtps + " MT/s · настроено";
-                } else if (module.ratedMtps > 0) {
-                    speed = module.ratedMtps + " MT/s · номинал";
-                }
+                int speedMtps = module.configuredMtps > 0 ? module.configuredMtps : module.ratedMtps;
+                String speed = speedMtps > 0 ? speedMtps + " MT/s" : null;
                 cards.add(memoryCard(module.label == null ? "Без маркировки" : module.label,
                         true, module.capacity > 0 ? gibibytes(module.capacity) : "Занят",
                         speed, module.manufacturer));
@@ -194,7 +190,7 @@ final class HardwarePanel extends JPanel {
         if (speed != null) {
             addCentered(card, new JLabel(speed));
         }
-        if (manufacturer != null) {
+        if (manufacturer != null && !"Unknown".equalsIgnoreCase(manufacturer)) {
             addCentered(card, hardwareLabel(manufacturer));
         }
         return card;
