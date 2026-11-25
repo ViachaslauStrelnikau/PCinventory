@@ -78,6 +78,7 @@ final class HardwareNormalization {
                 || (arraysKnown && firmware.size() > snapshot.slotsTotal)
                 || (capacitiesKnown && total < snapshot.visibleMemory);
         if (conflict) {
+            snapshot.memorySourceConflict = true;
             snapshot.warnings.add("Источники расходятся по объёму или слотам ОЗУ");
         }
         if (!arraysKnown || snapshot.slotsTotal < occupied) {
@@ -144,7 +145,7 @@ final class HardwareNormalization {
     }
 
     private static boolean samePosition(SmbiosMemory first, SmbiosMemory second) {
-        return first.arrayHandle == second.arrayHandle && sameLabel(text(first.locator), text(second.locator))
+        return sameLabel(text(first.locator), text(second.locator))
                 && sameLabel(text(first.bank), text(second.bank));
     }
 

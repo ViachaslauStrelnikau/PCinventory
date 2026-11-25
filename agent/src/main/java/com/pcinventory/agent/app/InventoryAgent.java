@@ -3,6 +3,7 @@ package com.pcinventory.agent.app;
 import com.pcinventory.agent.collector.RuntimeProbe;
 import com.pcinventory.agent.collector.HardwareSource;
 import com.pcinventory.agent.collector.WindowsHardwareSource;
+import com.pcinventory.agent.firebase.FirebaseEmulatorClient;
 import com.pcinventory.agent.ui.InventoryWindow;
 
 import javax.swing.SwingUtilities;
@@ -25,13 +26,15 @@ public final class InventoryAgent {
         }
 
         boolean preview = args.length == 1 && "--preview".equals(args[0]);
+        FirebaseEmulatorClient emulator = !preview && "1".equals(System.getenv("PCINVENTORY_EMULATOR"))
+                ? new FirebaseEmulatorClient() : null;
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (ReflectiveOperationException | UnsupportedLookAndFeelException exception) {
                 // Keep the default Swing look and feel if the system theme is unavailable.
             }
-            new InventoryWindow(hardware, preview).setVisible(true);
+            new InventoryWindow(hardware, preview, emulator).setVisible(true);
         });
     }
 }

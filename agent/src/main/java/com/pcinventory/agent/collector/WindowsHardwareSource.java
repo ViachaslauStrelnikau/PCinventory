@@ -248,6 +248,7 @@ public final class WindowsHardwareSource implements HardwareSource {
                     "Win32_NetworkAdapter WHERE PhysicalAdapter = TRUE AND NetConnectionStatus = 2", Adapter.class);
             WmiResult<NetworkConfig> configurations = query(
                     "Win32_NetworkAdapterConfiguration WHERE IPEnabled = TRUE", NetworkConfig.class);
+            snapshot.networkSourcesAvailable = adapters != null && configurations != null;
             Map<Object, Object> dhcpByIndex = new HashMap<>();
             for (int row = 0; row < count(configurations); row++) {
                 dhcpByIndex.put(configurations.getValue(NetworkConfig.INDEX, row),
@@ -260,6 +261,7 @@ public final class WindowsHardwareSource implements HardwareSource {
                 if (hardwareId == null || !hardwareId.matches("(?i)(PCI|USB|SD|PCMCIA)\\\\.*")) {
                     if (hardwareId == null || !hardwareId.matches("(?i)(ROOT|SWD)\\\\.*")) {
                         snapshot.warnings.add("Тип одного из активных сетевых адаптеров не определён");
+                        snapshot.unclassifiedNetworkAdapter = true;
                         dhcpFlags.add(null);
                     }
                     continue;

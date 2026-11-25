@@ -1,7 +1,11 @@
 package com.pcinventory.agent.ui;
 
+import com.pcinventory.agent.collector.HardwareReport;
 import com.pcinventory.agent.collector.HardwareSnapshot;
 import com.pcinventory.agent.collector.HardwareSource;
+import com.pcinventory.agent.contract.Assignment;
+import com.pcinventory.agent.firebase.FirebaseEmulatorClient;
+import com.pcinventory.agent.firebase.SubmissionDraft;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -9,12 +13,15 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import javax.swing.WindowConstants;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -29,12 +36,27 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.util.Arrays;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
 public final class InventoryWindow extends JFrame {
+    private static final String BLANK = "[\\s\\p{Z}\\u0085\\ufeff]*";
     private final HardwarePanel hardware = new HardwarePanel();
     private final HardwareSource hardwareSource;
     private final JButton read = new JButton("Прочитать конфигурацию");
+    private final JButton register = new JButton("Зарегистрировать");
+    private final JTextField inventoryNumber = new JTextField(28);
+    private final JTextField employeeName = new JTextField(28);
+    private final JTextField department = new JTextField(28);
+    private final JTextField building = new JTextField(28);
+    private final JTextField floor = new JTextField(16);
+    private final JTextField room = new JTextField(16);
+    private final JTextArea comment = new JTextArea(3, 30);
+    private final JTextField email = new JTextField(28);
+    private final JPasswordField password = new JPasswordField(28);
+    private final JTextComponent[] fields = {inventoryNumber, employeeName, department, building, floor, room,
+            comment, email, password};
     private final JLabel status = new JLabel("Ожидание чтения конфигурации");
     private final ReadingSpinner spinner = new ReadingSpinner();
     private final Timer spinnerTimer = new Timer(80, event -> {
@@ -42,22 +64,37 @@ public final class InventoryWindow extends JFrame {
         status.repaint();
     });
     private final boolean preview;
+    private final FirebaseEmulatorClient emulator;
+    private HardwareSnapshot snapshot;
+    private boolean busy;
+    private SubmissionDraft draft;
+    private String[] draftAssignment;
+    private SwingWorker<FirebaseEmulatorClient.Result, Void> submission;
 
-    public InventoryWindow(HardwareSource hardwareSource, boolean preview) {
+    public InventoryWindow(HardwareSource hardwareSource, boolean preview, FirebaseEmulatorClient emulator) {
         super("Computer Inventory — Регистрация компьютера");
         this.hardwareSource = hardwareSource;
         this.preview = preview;
+        this.emulator = emulator;
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
-        JButton register = new JButton("Зарегистрировать");
         register.setEnabled(false);
+        register.addActionListener(event -> register());
         read.addActionListener(event -> readConfiguration());
         JPanel actions = new JPanel(new GridLayout(1, 2, 8, 0));
         actions.add(read);
         actions.add(register);
 
         JPanel footer = new JPanel(new BorderLayout(0, 6));
-        footer.add(actions, BorderLayout.PAGE_START);
+        if (emulator != null) {
+            JPanel operator = new JPanel(new GridBagLayout());
+            operator.setBorder(BorderFactory.createTitledBorder("Локальный эмулятор · отчёт поступит на проверку"));
+            addField(operator, 0, "Почта сборщика", email, 256);
+            addField(operator, 1, "Пароль сборщика", password, 256);
+            footer.add(operator, BorderLayout.PAGE_START);
+            listenForFormChanges();
+        }
+        footer.add(actions, BorderLayout.CENTER);
         status.setOpaque(true);
         status.setBorder(BorderFactory.createEmptyBorder(7, 8, 7, 8));
         footer.add(status, BorderLayout.PAGE_END);
@@ -91,22 +128,21 @@ public final class InventoryWindow extends JFrame {
         }
     }
 
-    private static JPanel createAssignment() {
+    private JPanel createAssignment() {
         JPanel assignment = new JPanel(new BorderLayout(0, 5));
         assignment.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder("Учётные данные"),
                 BorderFactory.createEmptyBorder(2, 6, 6, 6)));
         JPanel fields = new JPanel(new GridBagLayout());
-        addField(fields, 0, "Инвентарный номер", 256);
-        addField(fields, 1, "ФИО сотрудника", 256);
-        addField(fields, 2, "Подразделение", 256);
-        addField(fields, 3, "Здание / корпус *", 256);
+        addField(fields, 0, "Инвентарный номер", inventoryNumber, 256);
+        addField(fields, 1, "ФИО сотрудника", employeeName, 256);
+        addField(fields, 2, "Подразделение", department, 256);
+        addField(fields, 3, "Здание / корпус *", building, 256);
 
         JPanel location = new JPanel(new GridLayout(1, 2, 8, 0));
-        location.add(locationField("Этаж *"));
-        location.add(locationField("Кабинет *"));
+        location.add(locationField("Этаж *", floor));
+        location.add(locationField("Кабинет *", room));
 
-        JTextArea comment = new JTextArea(3, 30);
         comment.setLineWrap(true);
         comment.setWrapStyleWord(true);
         limitInput(comment, 2000);
@@ -126,8 +162,7 @@ public final class InventoryWindow extends JFrame {
         return assignment;
     }
 
-    private static JPanel locationField(String name) {
-        JTextField field = new JTextField(16);
+    private static JPanel locationField(String name, JTextField field) {
         limitInput(field, 64);
         JLabel label = new JLabel(name);
         label.setLabelFor(field);
@@ -137,8 +172,7 @@ public final class InventoryWindow extends JFrame {
         return panel;
     }
 
-    private static void addField(JPanel panel, int row, String name, int limit) {
-        JTextField field = new JTextField(28);
+    private static void addField(JPanel panel, int row, String name, JTextComponent field, int limit) {
         limitInput(field, limit);
         addLabeledRow(panel, row, name, field);
     }
@@ -190,7 +224,10 @@ public final class InventoryWindow extends JFrame {
             showStatus("Демонстрационные данные. Регистрация недоступна.", true);
             return;
         }
-        read.setEnabled(false);
+        snapshot = null;
+        draft = null;
+        draftAssignment = null;
+        setBusy(true);
         showStatus("Чтение конфигурации компьютера…", false);
         status.setIcon(spinner);
         spinnerTimer.start();
@@ -205,7 +242,14 @@ public final class InventoryWindow extends JFrame {
                 try {
                     HardwareSnapshot result = get();
                     hardware.showProbe(result);
-                    if (result.warnings.isEmpty()) {
+                    snapshot = result;
+                    if (emulator != null) {
+                        if (HardwareReport.canSubmit(result)) {
+                            showStatus("Конфигурация прочитана. Укажите местоположение и данные сборщика.", true);
+                        } else {
+                            showStatus("Недостаточно данных для регистрации. Повторите чтение.", false);
+                        }
+                    } else if (result.warnings.isEmpty()) {
                         showStatus("Чтение завершено. Регистрация в испытательной сборке недоступна.", true);
                     } else {
                         showStatus("Часть сведений недоступна. Подробности в блоке конфигурации.", false);
@@ -217,7 +261,7 @@ public final class InventoryWindow extends JFrame {
                     showStatus("Не удалось прочитать конфигурацию. Попробуйте ещё раз.", false);
                 } finally {
                     stopSpinner();
-                    read.setEnabled(true);
+                    setBusy(false);
                 }
             }
         }.execute();
@@ -225,6 +269,10 @@ public final class InventoryWindow extends JFrame {
 
     @Override
     public void dispose() {
+        if (submission != null) {
+            submission.cancel(true);
+        }
+        password.setText("");
         stopSpinner();
         super.dispose();
     }
@@ -232,5 +280,131 @@ public final class InventoryWindow extends JFrame {
     private void stopSpinner() {
         spinnerTimer.stop();
         status.setIcon(null);
+    }
+
+    private void listenForFormChanges() {
+        DocumentListener listener = new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { updateRegisterButton(); }
+            @Override public void removeUpdate(DocumentEvent event) { updateRegisterButton(); }
+            @Override public void changedUpdate(DocumentEvent event) { updateRegisterButton(); }
+        };
+        for (JTextComponent field : fields) {
+            field.getDocument().addDocumentListener(listener);
+        }
+    }
+
+    private void setBusy(boolean value) {
+        busy = value;
+        read.setEnabled(!busy);
+        updateRegisterButton();
+    }
+
+    private static String entry(JTextComponent field) {
+        String value = field.getText().trim();
+        return value.matches(BLANK) ? null : value;
+    }
+
+    private String[] assignmentValues() {
+        return new String[] {entry(building), entry(floor), entry(room), entry(inventoryNumber),
+                entry(employeeName), entry(department), entry(comment)};
+    }
+
+    private void updateRegisterButton() {
+        if (emulator == null || busy || snapshot == null || !HardwareReport.canSubmit(snapshot)) {
+            register.setEnabled(false);
+            return;
+        }
+        String[] values = assignmentValues();
+        register.setEnabled(values[0] != null && values[1] != null && values[2] != null
+                && entry(email) != null && password.getDocument().getLength() > 0
+                && (draft == null || !draft.isSent() || !Arrays.equals(values, draftAssignment)));
+    }
+
+    private void register() {
+        updateRegisterButton();
+        if (!register.isEnabled()) {
+            return;
+        }
+        String[] values = assignmentValues();
+        if (draft == null || !Arrays.equals(values, draftAssignment)) {
+            Assignment assignment = new Assignment();
+            assignment.building = values[0];
+            assignment.floor = values[1];
+            assignment.room = values[2];
+            assignment.inventoryNumber = values[3];
+            assignment.employeeName = values[4];
+            assignment.department = values[5];
+            assignment.comment = values[6];
+            draft = new SubmissionDraft(snapshot.deviceId, HardwareReport.from(snapshot), assignment);
+            draftAssignment = values;
+        }
+        SubmissionDraft pending = draft;
+        String account = entry(email);
+        char[] secret = password.getPassword();
+        setBusy(true);
+        for (JTextComponent field : fields) {
+            field.setEnabled(false);
+        }
+        showStatus("Отправка отчёта в локальный эмулятор…", false);
+        status.setIcon(spinner);
+        spinnerTimer.start();
+        submission = new SwingWorker<FirebaseEmulatorClient.Result, Void>() {
+            @Override
+            protected FirebaseEmulatorClient.Result doInBackground() {
+                return emulator.submit(pending, account, secret);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    showSubmissionResult(get(), pending.reportId());
+                } catch (CancellationException exception) {
+                    showStatus("Отправка прервана.", false);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    showStatus("Отправка прервана.", false);
+                } catch (ExecutionException exception) {
+                    showStatus("Не удалось отправить отчёт.", false);
+                } finally {
+                    Arrays.fill(secret, '\0');
+                    password.setText("");
+                    for (JTextComponent field : fields) {
+                        field.setEnabled(true);
+                    }
+                    submission = null;
+                    stopSpinner();
+                    setBusy(false);
+                }
+            }
+        };
+        submission.execute();
+    }
+
+    private void showSubmissionResult(FirebaseEmulatorClient.Result result, String reportId) {
+        switch (result) {
+            case SENT:
+                showStatus("ОК. Отчёт отправлен на проверку администратору.", true);
+                break;
+            case INVALID_REPORT:
+                showStatus("Отчёт не прошёл проверку. Проверьте учётные данные и повторите чтение.", false);
+                break;
+            case LOGIN_FAILED:
+                showStatus("Не удалось войти. Проверьте почту и пароль сборщика.", false);
+                break;
+            case ACCESS_DENIED:
+                showStatus("Отправка запрещена. Проверьте роль сборщика и открыт ли приём.", false);
+                break;
+            case NETWORK_ERROR:
+                showStatus("Нет связи с локальным эмулятором. Проверьте его запуск.", false);
+                break;
+            case UNCONFIRMED:
+                showStatus("Не удалось подтвердить сохранение. ID отчёта " + reportId, false);
+                break;
+            case CANCELLED:
+                showStatus("Отправка прервана.", false);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected submission result");
+        }
     }
 }

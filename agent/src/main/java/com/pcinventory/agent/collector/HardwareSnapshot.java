@@ -33,8 +33,11 @@ public final class HardwareSnapshot {
     public String boardSerial;
     public String deviceId;
     public String networkMode = "UNKNOWN";
+    public boolean networkSourcesAvailable;
+    public boolean unclassifiedNetworkAdapter;
     public long visibleMemory;
     public long installedMemory;
+    public boolean memorySourceConflict;
     public int slotsTotal;
     public Integer slotsUsed;
     public Integer slotsFree;
