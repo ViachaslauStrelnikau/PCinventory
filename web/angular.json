@@ -47,6 +47,7 @@
             "browser": "src/main.ts",
             "outputPath": "dist/pcinventory",
             "tsConfig": "tsconfig.app.json",
+            "allowedCommonJsDependencies": ["ajv", "exceljs"],
             "styles": [
               "src/styles.css"
             ]
@@ -56,7 +57,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "750kB",
                   "maximumError": "1MB"
                 },
                 {

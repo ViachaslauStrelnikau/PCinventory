@@ -1,0 +1,128 @@
+<header class="page-heading">
+  <div><h1>Реестр компьютеров</h1><p>Найдено ПК: {{ state.filtered().length }}</p></div>
+  <div class="actions">
+    <button type="button" (click)="data.refreshCards()" [disabled]="data.cardsLoading()">Обновить</button>
+    @if (data.admin()) { <a class="button" routerLink="/computers/new">Добавить ПК</a> }
+    <button type="button" class="primary" (click)="download()" [disabled]="!state.filtered().length || exporting()">
+      {{ exporting() ? 'Подготовка…' : 'Экспорт в Excel' }}
+    </button>
+  </div>
+</header>
+@if (data.cardsError() || exportError()) { <p class="notice error" role="alert">{{ data.cardsError() || exportError() }}</p> }
+<section class="panel toolbar" aria-label="Фильтры реестра">
+  <input type="search" aria-label="Поиск компьютеров" placeholder="Имя ПК, инвентарный номер, сотрудник или IP"
+    [ngModel]="state.text()" (ngModelChange)="state.text.set($event); state.page.set(1)">
+  <details class="dropdown">
+    <summary class="button">Фильтры @if (state.filterCount()) { <span class="badge">{{ state.filterCount() }}</span> }</summary>
+    <div class="dropdown-content filters">
+      <div class="form-grid">
+        <label>ОЗУ от, GiB<input type="number" min="0" [ngModel]="state.minRam()" (ngModelChange)="state.minRam.set($event); state.page.set(1)"></label>
+        <label>ОЗУ до, GiB<input type="number" min="0" [ngModel]="state.maxRam()" (ngModelChange)="state.maxRam.set($event); state.page.set(1)"></label>
+        <label>Проверен с<input type="date" [ngModel]="state.fromDate()" (ngModelChange)="state.fromDate.set($event); state.page.set(1)"></label>
+        <label>Проверен по<input type="date" [ngModel]="state.toDate()" (ngModelChange)="state.toDate.set($event); state.page.set(1)"></label>
+      </div>
+      @for (filter of filters; track filter.key) {
+        @if (options()[filter.key].length) {
+          <details class="filter-group"><summary>{{ filter.label }}</summary>
+            @for (value of options()[filter.key]; track value) {
+              <label class="check"><input type="checkbox" [checked]="state.choices()[filter.key]?.includes(value)"
+                (change)="toggleFilter(filter.key, value, $event.target.checked)">{{ value }}</label>
+            }
+          </details>
+        }
+      }
+      <button type="button" (click)="state.reset()">Сбросить фильтры</button>
+    </div>
+  </details>
+  <details class="dropdown">
+    <summary class="button">Столбцы</summary>
+    <div class="dropdown-content columns-menu">
+      @for (column of columns; track column.key) {
+        <label class="check"><input type="checkbox" [checked]="state.visibleColumns().includes(column.key)"
+          [disabled]="column.key === 'host'" (change)="toggleColumn(column.key)">{{ column.title }}</label>
+      }
+    </div>
+  </details>
+</section>
+<div class="registry-grid">
+  <aside class="panel location-tree" aria-label="Расположение">
+    <h2>Расположение</h2>
+    <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
+      Все здания <span>{{ state.filteredWithoutPlace().length }}</span>
+    </button>
+    @for (building of state.tree(); track building.name) {
+      <details #buildingNode>
+        <summary>
+          <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && !state.place()?.floor"
+            (click)="state.setPlace({ building: building.name }); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+        </summary>
+        @for (floor of building.floors; track floor.name) {
+          <details #floorNode class="tree-indent">
+            <summary>
+              <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && !state.place()?.room"
+                (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+            </summary>
+            @for (room of floor.rooms; track room.name) {
+              <button type="button" class="tree-button tree-indent" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && state.place()?.room === room.name"
+                (click)="state.setPlace({ building: building.name, floor: floor.name, room: room.name })">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+            }
+          </details>
+        }
+      </details>
+    }
+  </aside>
+  <section class="panel table-panel" aria-label="Компьютеры">
+    <div class="table-top">
+      <div class="segments" aria-label="Статус карточек">
+        <button type="button" [attr.aria-pressed]="state.status() === 'ACTIVE'" (click)="state.status.set('ACTIVE'); state.page.set(1)">Активные</button>
+        <button type="button" [attr.aria-pressed]="state.status() === 'RETIRED'" (click)="state.status.set('RETIRED'); state.page.set(1)">Архив</button>
+        <button type="button" [attr.aria-pressed]="state.status() === 'ALL'" (click)="state.status.set('ALL'); state.page.set(1)">Все</button>
+      </div>
+      @if (state.location()) { <span class="muted">{{ state.location() }}</span> }
+    </div>
+    @if (data.cardsLoading()) { <p class="empty" role="status">Загрузка карточек…</p> }
+    @else if (!data.cardsError() && !state.rows().length) { <p class="empty">По выбранным условиям карточек нет.</p> }
+    @else if (state.rows().length) {
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            @for (column of visible(); track column.key) {
+              <th scope="col" [attr.aria-sort]="state.sort().column !== column.key ? null : state.sort().ascending ? 'ascending' : 'descending'">
+                <button type="button" class="table-sort" (click)="sort(column.key)">{{ column.title }}<span aria-hidden="true">{{ state.sort().column === column.key ? (state.sort().ascending ? ' ↑' : ' ↓') : '' }}</span></button>
+              </th>
+            }
+          </tr></thead>
+          <tbody>
+            @for (card of state.rows(); track card.deviceId) {
+              <tr>
+                @for (column of visible(); track column.key) {
+                  <td>
+                    @switch (column.key) {
+                      @case ('host') { <a class="record-link" [routerLink]="['/computers', card.deviceId]">{{ card.hostname }}</a> }
+                      @case ('status') { <span class="badge" [class.good]="card.status !== 'RETIRED'">{{ column.value(card) }}</span> }
+                      @default { {{ column.value(card) ?? missing }} }
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <footer class="table-footer">
+        <label>На странице
+          <select [ngModel]="state.size()" (ngModelChange)="state.size.set($event); state.page.set(1)">
+            <option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button type="button" aria-label="Предыдущая страница" [disabled]="state.currentPage() <= 1"
+            (click)="state.page.set(state.currentPage() - 1)">←</button>
+          <span>{{ state.currentPage() }} / {{ state.pages() }}</span>
+          <button type="button" aria-label="Следующая страница" [disabled]="state.currentPage() >= state.pages()"
+            (click)="state.page.set(state.currentPage() + 1)">→</button>
+        </div>
+      </footer>
+    }
+  </section>
+</div>

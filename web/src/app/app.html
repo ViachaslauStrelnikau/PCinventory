@@ -1,0 +1,25 @@
+<div class="shell" [class.guest]="!data.session()">
+  @if (data.session(); as session) {
+    <aside class="sidebar">
+      <a class="brand" routerLink="/computers">Computer Inventory</a>
+      <nav aria-label="Разделы">
+        <a routerLink="/computers" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark monitor"></span>Компьютеры</a>
+        @if (data.admin()) {
+          <a routerLink="/reports" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark document"></span>Входящие отчёты
+            @if (data.pendingCount() > 0) { <span class="nav-count">{{ data.pendingCount() }}</span> }
+          </a>
+        }
+        <a routerLink="/statistics" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark bars"></span>Статистика</a>
+        @if (data.admin()) {
+          <a routerLink="/settings" routerLinkActive="selected" ariaCurrentWhenActive="page"><span aria-hidden="true" class="nav-mark gear"></span>Настройки</a>
+        }
+      </nav>
+      <div class="account">
+        <strong>{{ data.admin() ? 'Администратор' : 'Пользователь' }}</strong>
+        <span class="muted" [title]="session.email">{{ session.email }}</span>
+        <button type="button" class="button quiet" (click)="logout()">Выйти</button>
+      </div>
+    </aside>
+  }
+  <main [class.workspace]="data.session()" [class.login-workspace]="!data.session()"><router-outlet /></main>
+</div>

@@ -1,0 +1,121 @@
+<header class="page-heading">
+  <div><h1>Входящие отчёты</h1><p>Ожидают проверки: {{ data.pendingCount() }}</p></div>
+  <button type="button" (click)="reload()" [disabled]="data.reportsLoading() || busy()">Обновить</button>
+</header>
+@if (data.reportsError()) { <p class="notice error" role="alert">{{ data.reportsError() }}</p> }
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (notice()) { <p class="notice success" role="status">{{ notice() }}</p> }
+@if (data.invalidReports().length) {
+  <details class="notice warning"><summary>Не удалось прочитать отчёты ({{ data.invalidReports().length }})</summary>
+    <ul>@for (id of data.invalidReports(); track id) { <li>{{ id }}</li> }</ul>
+  </details>
+}
+<div class="report-grid">
+  <section class="panel report-inbox" aria-label="Список отчётов">
+    <div class="inbox-controls">
+      <div class="segments">
+        <button type="button" [attr.aria-pressed]="tab() === 'pending'" (click)="selectTab('pending')" [disabled]="busy()">Ожидают проверки</button>
+        <button type="button" [attr.aria-pressed]="tab() === 'processed'" (click)="selectTab('processed')" [disabled]="busy()">Обработанные</button>
+      </div>
+      <input type="search" aria-label="Поиск отчётов" placeholder="Имя ПК, кабинет или идентификатор" [ngModel]="text()" (ngModelChange)="text.set($event)">
+    </div>
+    @if (data.reportsLoading()) { <p class="empty" role="status">Загрузка отчётов…</p> }
+    @else {
+      @for (item of reports(); track item.reportId) {
+        <button type="button" class="inbox-item" [class.selected]="selectedId() === item.reportId" [attr.aria-pressed]="selectedId() === item.reportId"
+          (click)="select(item)" [disabled]="busy()">
+          <strong>{{ effective(item).hardware.hostname }}</strong>
+          <span class="badge" [class.good]="item.status === 'ACCEPTED'" [class.pending]="item.status === 'PENDING'">{{ labels[item.status] }}</span>
+          <small>{{ effective(item).assignment.building }} · Каб. {{ effective(item).assignment.room }}</small>
+          <small>{{ dateText(item.submittedAt) }}</small>
+        </button>
+      } @empty { @if (!data.reportsError()) { <p class="empty">В этой вкладке нет отчётов по выбранным условиям.</p> } }
+    }
+  </section>
+  <div class="report-detail">
+    @if (report(); as item) {
+      @if (proposed(); as next) {
+        <section class="panel section">
+          <div class="inline-heading">
+            <div>
+              <h2>{{ next.hardware.hostname }}</h2>
+              <p class="muted">{{ dateText(item.submittedAt) }} · {{ labels[item.status] }}</p>
+            </div>
+            @if (item.status === 'PENDING' && !draft()) {
+              <button type="button" (click)="draft.set(next); rejectConfirmation.set(false)" [disabled]="busy()">Исправить отчёт</button>
+            }
+            @if (item.status === 'ACCEPTED' && card()) {
+              <a class="button" [routerLink]="['/computers', item.deviceId]">Открыть карточку</a>
+            }
+          </div>
+          <p class="subtle-id">ПК {{ item.deviceId }}</p>
+          @if (item.correction; as correction) {
+            <p class="notice info">Исправлено {{ dateText(correction.updatedAt) }} · {{ correction.updatedBy }}</p>
+          }
+          @if (item.status !== 'PENDING') {
+            <p class="muted">Проверено {{ dateText(item.reviewedAt) }} · {{ item.reviewedBy }}</p>
+          }
+        </section>
+        @if (draft(); as editable) {
+          <app-record-editor [entry]="editable" [busy]="busy()" [report]="true" saveLabel="Сохранить исправления"
+            (save)="save(item, $event)" (cancel)="draft.set(null); error.set('')" />
+        } @else if (item.status === 'PENDING') {
+          <section class="panel section">
+            <h2>Проверка отчёта</h2>
+            @if (loadingCard()) { <p role="status">Загрузка текущей карточки…</p> }
+            @if (cardError()) { <p class="notice error" role="alert">{{ cardError() }}</p> }
+            @if (!card() && !loadingCard() && !cardError()) { <p class="notice info">Принятие отчёта создаст новую карточку.</p> }
+            @if (card()?.status === 'RETIRED') { <p class="notice warning">Карточка в архиве. Принятие отчёта сохранит её архивный статус.</p> }
+            @if (renamed()) { <p class="notice warning">Имя ПК в отчёте отличается от имени в карточке.</p> }
+            @if (moved()) { <p class="notice warning">Изменилось расположение ПК. Подтвердите здание, этаж и кабинет одним действием.</p> }
+            @if (stale()) { <p class="notice warning">В карточке уже применён более свежий отчёт. Этот отчёт можно отклонить.</p> }
+            <div class="table-scroll">
+              <table class="comparison-table">
+                <thead><tr><th scope="col">Поле</th><th scope="col">В карточке</th><th scope="col">В отчёте</th></tr></thead>
+                <tbody>
+                  @for (row of comparison(); track row.label) {
+                    <tr [class.changed]="row.changed"><th scope="row">{{ row.label }}</th><td>{{ row.old }}</td><td>{{ row.value }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (moved()) {
+              <label class="check"><input type="checkbox" [checked]="confirmedLocation()" (change)="confirmedLocation.set($event.target.checked)">Подтверждаю здание, этаж и кабинет</label>
+            }
+            @if (renamed()) {
+              <label class="check"><input type="checkbox" [checked]="confirmedHost()" (change)="confirmedHost.set($event.target.checked)">Подтверждаю изменение имени ПК</label>
+            }
+            @if (suggestedOptions().length) {
+              <fieldset class="review-options">
+                <legend>Применить необязательные учётные поля</legend>
+                @for (option of suggestedOptions(); track option.key) {
+                  <label class="check"><input type="checkbox" [checked]="choices().has(option.key)" (change)="toggle(option.key, $event.target.checked)">
+                    <span>{{ option.label }} · {{ option.value }}</span></label>
+                }
+              </fieldset>
+            }
+            @if (rejectConfirmation()) {
+              <div class="notice warning"><p>Отклонить этот отчёт?</p><div class="actions">
+                <button type="button" (click)="rejectConfirmation.set(false)" [disabled]="busy()">Отмена</button>
+                <button type="button" class="danger" (click)="review(item, 'REJECTED')" [disabled]="busy()">Подтвердить отклонение</button>
+              </div></div>
+            } @else {
+              <div class="actions editor-actions">
+                <button type="button" class="primary" (click)="review(item, 'ACCEPTED')"
+                  [disabled]="busy() || loadingCard() || !!cardError() || stale() || (moved() && !confirmedLocation()) || (renamed() && !confirmedHost())">Принять отчёт</button>
+                <button type="button" class="danger-text" (click)="rejectConfirmation.set(true)" [disabled]="busy()">Отклонить</button>
+              </div>
+            }
+          </section>
+        } @else {
+          <section class="panel section"><h2>Данные обработанного отчёта</h2><app-record-details [entry]="next" /></section>
+        }
+        @if (item.correction) {
+          <details class="panel section technical-meta"><summary>Исходные данные агента</summary><app-record-details [entry]="item" /></details>
+        }
+      }
+    } @else {
+      <p class="panel empty">Выберите отчёт для просмотра.</p>
+    }
+  </div>
+</div>

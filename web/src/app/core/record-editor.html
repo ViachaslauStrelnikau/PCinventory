@@ -1,0 +1,66 @@
+<form (ngSubmit)="submit()" #editor="ngForm" class="panel editor">
+  <fieldset [disabled]="busy()">
+    <h2>Учётные данные</h2>
+    <div class="form-grid">
+      <label>Имя ПК <span>*</span><input name="hostname" [(ngModel)]="draft.hardware.hostname" required maxlength="255"></label>
+      @for (field of assignmentFields; track field.key) {
+        <label>{{ field.label }} @if (field.required) { <span>*</span> }
+          <input [name]="field.key" [(ngModel)]="draft.assignment[field.key]" [required]="field.required" [maxlength]="field.max">
+        </label>
+      }
+      <label class="wide">Примечание<textarea rows="2" name="comment" [(ngModel)]="draft.assignment.comment" maxlength="2000"></textarea></label>
+    </div>
+    <details class="editor-group">
+      <summary>Процессор, системная плата, ОС и общие сведения об ОЗУ</summary>
+      <div class="form-grid">
+        @for (field of fields; track field.key) {
+          <label>{{ field.label }}
+            @if (field.choices; as choices) {
+              <select [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">
+                @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice) }}</option> }
+              </select>
+            } @else if (field.kind === 'number') {
+              <input type="number" min="0" [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">
+            } @else {
+              <input [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">
+            }
+          </label>
+        }
+      </div>
+    </details>
+    @for (group of groups; track group.key) {
+      <details class="editor-group">
+        <summary>{{ group.label }} ({{ items(group).length }})</summary>
+        @for (item of items(group); track item; let row = $index) {
+          <div class="item-edit">
+            <div class="inline-heading"><h3>{{ group.label }} · {{ row + 1 }}</h3>
+              <button class="danger-text" type="button" (click)="items(group).splice(row, 1)">Удалить строку</button>
+            </div>
+            <div class="form-grid">
+              @for (field of group.fields; track field.key) {
+                <label>{{ field.label }}
+                  @if (field.choices; as choices) {
+                    <select [ngModelOptions]="standalone" [ngModel]="item[field.key]" (ngModelChange)="update(item, field, $event)">
+                      @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice) }}</option> }
+                    </select>
+                  } @else if (field.kind === 'number') {
+                    <input type="number" min="0" [ngModelOptions]="standalone" [ngModel]="item[field.key]" (ngModelChange)="update(item, field, $event)">
+                  } @else if (field.kind === 'addresses') {
+                    <input [value]="item[field.key]" [disabled]="item['mode'] !== 'STATIC'" (change)="update(item, field, $event.target.value)">
+                  } @else {
+                    <input [ngModelOptions]="standalone" [ngModel]="item[field.key]" (ngModelChange)="update(item, field, $event)">
+                  }
+                </label>
+              }
+            </div>
+          </div>
+        }
+        <button type="button" (click)="add(group)">Добавить строку</button>
+      </details>
+    }
+    <div class="actions editor-actions">
+      <button type="submit" class="primary" [disabled]="!editor.valid || busy()">{{ busy() ? 'Сохранение…' : saveLabel() }}</button>
+      <button type="button" (click)="cancel.emit()">Отмена</button>
+    </div>
+  </fieldset>
+</form>

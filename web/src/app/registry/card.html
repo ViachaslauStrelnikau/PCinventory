@@ -1,0 +1,61 @@
+<a class="back-link" routerLink="/computers"><span aria-hidden="true">← </span>Реестр компьютеров</a>
+<header class="page-heading">
+  <div>
+    <h1>{{ !id() ? 'Новая карточка ПК' : card()?.hostname || 'Карточка компьютера' }}</h1>
+    @if (card(); as record) {
+      <p>{{ record.building }} / Этаж {{ record.floor }} / Каб. {{ record.room }}
+        <span class="badge" [class.good]="record.status !== 'RETIRED'">{{ stateLabels[record.status ?? 'ACTIVE'] }}</span>
+      </p>
+    }
+  </div>
+  @if (card(); as record) {
+    @if (data.admin() && !draft() && !confirming()) {
+      <div class="actions">
+        <button type="button" (click)="edit()" [disabled]="busy() || loading()">Редактировать</button>
+        <button type="button" (click)="changeStatus(record)" [disabled]="busy() || loading()">{{ record.status === 'RETIRED' ? 'Восстановить' : 'Архивировать' }}</button>
+        @if (record.status === 'RETIRED') { <button type="button" class="danger-text" (click)="confirming.set(true)" [disabled]="busy()">Удалить из архива</button> }
+      </div>
+    }
+  }
+</header>
+@if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+@if (notice() && !error()) { <p class="notice success" role="status">{{ notice() }}</p> }
+@if (confirming()) {
+  @if (card(); as record) {
+    <section class="panel section danger-box" aria-labelledby="purge-heading">
+      <h2 id="purge-heading">Удалить {{ record.hostname }} окончательно?</h2>
+      <p>После удаления восстановить карточку из архива будет невозможно.</p>
+      <div class="actions">
+        <button type="button" (click)="confirming.set(false)" [disabled]="busy()">Отмена</button>
+        <button type="button" class="danger" (click)="purge(record)" [disabled]="busy()">Удалить окончательно</button>
+      </div>
+    </section>
+  }
+}
+@if (draft(); as editable) {
+  <app-record-editor [entry]="editable" [busy]="busy()" (save)="save($event)" (cancel)="cancel()" />
+} @else if (loading()) {
+  <p role="status" class="panel empty">Загрузка карточки…</p>
+} @else if (entry(); as values) {
+  <section class="panel section">
+    <div class="inline-heading"><h2>Конфигурация и учётные данные</h2>
+      @if (card(); as record) { <span class="muted">Инвентаризация · {{ dateText(record.lastInventoryAt) }}</span> }
+    </div>
+    <app-record-details [entry]="values" />
+  </section>
+  @if (card(); as record) {
+    <details class="panel section technical-meta">
+      <summary>Сведения о записи</summary>
+      <dl class="record-details">
+        <div><dt>Идентификатор ПК</dt><dd>{{ record.deviceId }}</dd></div>
+        <div><dt>Последний отчёт</dt><dd>{{ record.lastReportId || '—' }}</dd></div>
+        <div><dt>Версия агента</dt><dd>{{ record.agentVersion }}</dd></div>
+        <div><dt>Последнее изменение учёта</dt><dd>{{ dateText(record.assignmentUpdatedAt) }} · {{ record.assignmentUpdatedBy }}</dd></div>
+      </dl>
+    </details>
+  }
+} @else if (!error()) {
+  <p class="panel empty">Карточка не найдена.</p>
+} @else {
+  <button type="button" (click)="load()">Повторить загрузку</button>
+}
