@@ -86,6 +86,7 @@ export function ssdLabel(state: boolean | null): string {
 }
 
 export type Place = { building: string; floor?: string; room?: string };
+type LocationLevel = keyof InventoryLocation;
 function placeMatches(card: ComputerDocument, place: Place): boolean {
   return card.building === place.building && (!place.floor || card.floor === place.floor)
     && (!place.room || card.room === place.room);
@@ -201,6 +202,31 @@ export class RegistryState {
     const place = this.place();
     return place ? [place.building, place.floor, place.room].filter(Boolean).join(' / ') : '';
   });
+
+  locationLabelParts(label: string, level: LocationLevel): { text: string; match: boolean }[] {
+    const terms = this.locationTerms();
+    if (!terms.length) return [{ text: label, match: false }];
+
+    const lowercase = label.toLowerCase();
+    const matches = new Uint8Array(label.length);
+    for (const term of terms) {
+      const first = lowercase.indexOf(term);
+      for (let start = first; start !== -1; start = lowercase.indexOf(term, start + 1)) {
+        matches.fill(1, start, start + term.length);
+      }
+      if (first === -1 && level === 'room' && 'кабинет'.includes(term)) matches.fill(1, 0, 'Каб.'.length);
+      if (first === -1 && level === 'building' && 'здание'.includes(term)) matches.fill(1);
+    }
+
+    const parts = [];
+    let start = 0;
+    for (let end = 1; end <= label.length; end++) {
+      if (matches[end] === matches[start]) continue;
+      parts.push({ text: label.slice(start, end), match: matches[start] === 1 });
+      start = end;
+    }
+    return parts;
+  }
 
   searchLocations(value: string): void {
     this.locationSearch.set(value);

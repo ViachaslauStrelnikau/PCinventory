@@ -1,15 +1,17 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { InventoryData } from '../core/inventory-data';
 import { RegistryState, collator, columns, filters, missing, setLocationTreeOpen } from './registry-state';
 import { exportCards } from './xlsx-export';
 
-@Component({ selector: 'app-registry', imports: [FormsModule, RouterLink], templateUrl: './registry.html' })
+@Component({ selector: 'app-registry', imports: [FormsModule, NgTemplateOutlet, RouterLink], templateUrl: './registry.html' })
 export class Registry {
   readonly data = inject(InventoryData);
   readonly state = inject(RegistryState);
   readonly setTreeOpen = setLocationTreeOpen;
+  private readonly treeNodes = viewChild<ElementRef<HTMLElement>>('treeNodes');
   readonly columns = columns;
   readonly filters = filters;
   readonly missing = missing;
@@ -23,6 +25,24 @@ export class Registry {
 
   constructor() {
     if (!this.data.cardsLoaded()) void this.data.refreshCards();
+    afterRenderEffect({
+      earlyRead: () => {
+        const branches = new Set<HTMLDetailsElement>();
+        const tree = this.treeNodes()?.nativeElement;
+        if (!tree || !this.state.locationSearch().trim() || !this.state.tree().length) return branches;
+
+        for (const mark of tree.querySelectorAll('mark')) {
+          const node = mark.closest('summary')?.parentElement ?? mark;
+          for (let branch = node.parentElement?.closest('details'); branch; branch = branch.parentElement?.closest('details')) {
+            branches.add(branch);
+          }
+        }
+        return branches;
+      },
+      write: branches => {
+        for (const branch of branches()) branch.open = true;
+      },
+    });
   }
 
   toggleColumn(key: string): void {

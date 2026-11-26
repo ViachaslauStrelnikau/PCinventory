@@ -157,6 +157,8 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 }
 .tree-button.selected, .segments button[aria-pressed="true"] { background: #eaf1ff; color: #1a4c9c; }
 .tree-button span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tree-button .tree-label { color: inherit; font-variant-numeric: normal; min-width: 0; }
+.tree-label mark { background: #ffe69a; color: #302400; border-radius: 2px; }
 .table-panel { overflow: hidden; }
 .table-top, .table-footer { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: .75rem; }
 .segments { display: inline-flex; flex-wrap: wrap; gap: .2rem; padding: .15rem; border: 1px solid var(--line); border-radius: 7px; background: var(--soft); }

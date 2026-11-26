@@ -59,18 +59,35 @@
     <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
       Все здания <span>{{ state.filteredWithoutPlace().length }}</span>
     </button>
+    <ng-template #locationLabel let-label let-level="level">
+      <span class="tree-label">
+        @for (part of state.locationLabelParts(label, level); track $index) {
+          @if (part.match) {
+            <mark>{{ part.text }}</mark>
+          } @else {
+            <ng-container>{{ part.text }}</ng-container>
+          }
+        }
+      </span>
+    </ng-template>
     <div id="registry-location-tree" #treeNodes>
       @for (building of state.tree(); track building.name) {
         <details #buildingNode>
           <summary>
             <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && !state.place()?.floor"
-              (click)="state.setPlace({ building: building.name }); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+              (click)="state.setPlace({ building: building.name }); buildingNode.open = true">
+              <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: building.name, level: 'building' }" />
+              <span>{{ building.count }}</span>
+            </button>
           </summary>
           @for (floor of building.floors; track floor.name) {
             <details #floorNode class="tree-indent">
               <summary>
                 <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && !state.place()?.room"
-                  (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+                  (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">
+                  <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Этаж ' + floor.name, level: 'floor' }" />
+                  <span>{{ floor.count }}</span>
+                </button>
               </summary>
               @for (room of floor.rooms; track room.name) {
                 @let place = { building: building.name, floor: floor.name, room: room.name };
@@ -79,7 +96,10 @@
                   <details #roomNode class="tree-indent">
                     <summary>
                       <button type="button" class="tree-button" [class.selected]="selected"
-                        (click)="state.setPlace(place); roomNode.open = true">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                        (click)="state.setPlace(place); roomNode.open = true">
+                        <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Каб. ' + room.name, level: 'room' }" />
+                        <span>{{ room.count }}</span>
+                      </button>
                     </summary>
                     @for (card of room.cards; track card.deviceId) {
                       <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
@@ -90,7 +110,10 @@
                   </details>
                 } @else {
                   <button type="button" class="tree-button tree-indent" [class.selected]="selected"
-                    (click)="state.setPlace(place)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                    (click)="state.setPlace(place)">
+                    <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Каб. ' + room.name, level: 'room' }" />
+                    <span>{{ room.count }}</span>
+                  </button>
                 }
               }
             </details>
