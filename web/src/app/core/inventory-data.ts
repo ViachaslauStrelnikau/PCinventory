@@ -11,7 +11,7 @@ import { changeDirectory, indexLocation, loadDirectory, resolveCardLocation, tou
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
 import { meetsPasswordPolicy, passwordHint } from './password-policy';
-import { firebaseOptions, localFirebase } from './firebase-environment';
+import { firebaseOptions, localFirebase, localFirestoreHost, localFirestorePort } from './firebase-environment';
 
 export const optionalFields = { inventoryNumber: 'Инвентарный №', employeeName: 'ФИО сотрудника',
   department: 'Подразделение', comment: 'Примечание' } as const;
@@ -146,7 +146,7 @@ export class InventoryData {
     this.db = getFirestore(app);
     if (localFirebase) {
       connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-      connectFirestoreEmulator(this.db, '127.0.0.1', 8080);
+      connectFirestoreEmulator(this.db, localFirestoreHost, localFirestorePort);
     }
   }
 
@@ -260,6 +260,24 @@ export class InventoryData {
     const connection = this.connection();
     if (connection.session.role !== 'ADMIN') throw new InventoryError('Нужны права администратора.');
     return connection;
+  }
+
+  adminBackupSource() {
+    const { session } = this.adminConnection();
+    const project = this.firebase?.projectId;
+    if (!project) throw new InventoryError('Проект Firebase не настроен.');
+    return {
+      project,
+      base: localFirebase ? 'http://' + localFirestoreHost + ':' + localFirestorePort : undefined,
+      getToken: () => {
+        const { session: current } = this.adminConnection();
+        const user = this.auth?.currentUser;
+        if (!user || current.uid !== session.uid || user.uid !== session.uid) {
+          throw new InventoryError('Войдите в приложение заново.');
+        }
+        return user.getIdToken();
+      },
+    };
   }
 
   private presentCard(card: ComputerDocument, currentLocation: InventoryLocation): ComputerDocument {

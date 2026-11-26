@@ -29,6 +29,7 @@ jobs:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
       FIREBASE_WEB_APP_ID: ${{ vars.FIREBASE_WEB_APP_ID }}
       FIREBASE_WEB_API_KEY: ${{ vars.FIREBASE_WEB_API_KEY }}
+      FIREBASE_RESTORE_OAUTH_CLIENT_ID: ${{ vars.FIREBASE_RESTORE_OAUTH_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4

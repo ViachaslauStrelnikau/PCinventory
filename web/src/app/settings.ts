@@ -1,9 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
 import { InventoryData, messageFor } from './core/inventory-data';
 import { ChangePassword } from './change-password';
+import { FirestoreBackup } from './firestore-backup';
 
 @Component({
-  imports: [ChangePassword],
+  imports: [ChangePassword, FirestoreBackup],
   template: `
     <header class="page-heading"><h1>Настройки</h1></header>
     <app-change-password />
@@ -26,10 +27,7 @@ import { ChangePassword } from './change-password';
           <button type="button" (click)="load()">Повторить загрузку</button>
         }
       </section>
-      <section class="panel section settings-section" aria-labelledby="backup-title">
-        <div><h2 id="backup-title">Резервное копирование</h2><p class="muted">Создание и восстановление резервных копий появятся в будущем этапе.</p></div>
-        <button type="button" disabled>Создать копию</button>
-      </section>
+      <app-firestore-backup />
     }
   `,
 })

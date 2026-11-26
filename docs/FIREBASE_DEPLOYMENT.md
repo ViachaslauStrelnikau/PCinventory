@@ -27,6 +27,7 @@ Workflow **Deploy Firebase** запускается вручную с ветки
 | `FIREBASE_PROJECT_ID` | `pc-inventory-9b119` для выбранного пилота |
 | `FIREBASE_WEB_APP_ID` | `appId` из настроек зарегистрированного веб-приложения |
 | `FIREBASE_WEB_API_KEY` | `apiKey` из того же веб-приложения |
+| `FIREBASE_RESTORE_OAUTH_CLIENT_ID` | Публичный Google OAuth Client ID для восстановления через браузер. [Подключение](FIRESTORE_BACKUP.md#настройка-входа-google-для-восстановления) |
 | `FIREBASE_WIF_PROVIDER` | Полный путь `projects/NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER` |
 | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Адрес сервисной учётной записи развёртывания |
 

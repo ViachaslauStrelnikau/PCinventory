@@ -1,0 +1,68 @@
+<section class="panel section form-stack" aria-labelledby="backup-title">
+  <div class="settings-section">
+    <div>
+      <h2 id="backup-title">Резервное копирование</h2>
+      <p class="muted">Карточки ПК, отчёты и справочник. Храните файл в папке с ограниченным доступом.</p>
+    </div>
+    <button type="button" (click)="download()" [disabled]="busy()">Скачать резервную копию</button>
+  </div>
+
+  <div class="form-stack" aria-labelledby="restore-title">
+    <h3 id="restore-title">Восстановление в другом проекте</h3>
+    <label>Файл резервной копии
+      <input type="file" accept=".json,application/json" [disabled]="busy()" (change)="selectFile($any($event.target))">
+    </label>
+    @if (selected(); as file) {
+      <p class="muted">{{ file.name }} · проект {{ file.backup.sourceProject }} · снимок {{ file.backup.readTime }}</p>
+      @if (totals(); as documents) {
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Данные</th><th scope="col">В копии</th>
+              @if (plan()) { <th scope="col">К созданию</th> }
+            </tr></thead>
+            <tbody>
+              @for (collection of collections; track collection.key) {
+                <tr><th scope="row">{{ collection.label }}</th><td>{{ documents[collection.key] }}</td>
+                  @if (plan(); as preview) { <td>{{ preview.missing[collection.key] }}</td> }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (googleConfigured) {
+        <label>Project ID целевого проекта
+          <input type="text" spellcheck="false" autocomplete="off" maxlength="30" [disabled]="busy()"
+            [value]="target()" (input)="changeTarget($any($event.target))" aria-describedby="restore-help">
+        </label>
+        <p id="restore-help" class="muted">Используйте отдельный проект с закрытым приёмом отчётов и вход Google с правами Firestore.</p>
+        @if (targetError()) { <p class="alert error" role="alert">{{ targetError() }}</p> }
+        <div class="actions">
+          @if (googleReady()) {
+            <button type="button" [disabled]="busy() || !target() || !!targetError()" (click)="preview()">
+              Войти через Google и проверить восстановление
+            </button>
+          } @else {
+            <button type="button" [disabled]="busy() || loadingGoogle()" (click)="prepareGoogle()">
+              {{ loadingGoogle() ? 'Загрузка входа Google…' : 'Подключить вход Google' }}
+            </button>
+          }
+          @if (plan()?.missingCount) {
+            <button type="button" class="primary" [disabled]="busy()" (click)="restore()">
+              Восстановить в проект {{ target() }}
+            </button>
+          }
+        </div>
+      } @else {
+        <p class="muted">Для записи через браузер требуется настройка Google OAuth.
+          <a href="https://github.com/ViachaslauStrelnikau/PCinventory/blob/main/docs/FIRESTORE_BACKUP.md">Восстановление через командную строку</a>
+        </p>
+      }
+    }
+  </div>
+
+  @if (busy()) { <p class="muted" role="status">Операция выполняется…</p> }
+  @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+  @if (message()) { <p class="notice success" role="status">{{ message() }}</p> }
+</section>
