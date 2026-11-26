@@ -2,15 +2,13 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { type InventoryLocation } from '../../../../functions/location-directory.mjs';
 import { InventoryData } from '../core/inventory-data';
-import { LocalFunctions } from '../core/local-functions';
+import type { DirectoryCommand } from '../core/directory-store';
 import { RegistryState, locationTree } from '../registry/registry-state';
 
 const empty: InventoryLocation = { building: '', floor: '', room: '' };
 const labels = { building: 'Здание', floor: 'Этаж', room: 'Кабинет' } as const;
 type Level = keyof typeof labels;
 type Editor = { action: 'create' | 'rename'; level: Level; path: InventoryLocation };
-type Command = { action: 'create' | 'delete'; path: InventoryLocation }
-  | { action: 'rename'; path: InventoryLocation; name: string };
 
 const errors: Record<string, string> = {
   'invalid-location': 'Проверьте название или номер.',
@@ -20,6 +18,7 @@ const errors: Record<string, string> = {
   'location-has-children': 'Сначала удалите вложенные записи этого расположения.',
   'parent-location-missing': 'Родительская запись изменилась. Обновите справочник.',
   'concurrent-update': 'Справочник изменился в другой вкладке. Обновите его и повторите действие.',
+  'historical-location': 'Это прежнее название другого расположения. Выберите другое имя.',
   'rename-limit': 'Не удалось обновить всю ветку в одной транзакции.',
   'admin-required': 'Для редактирования справочника нужны права администратора.',
 };
@@ -27,7 +26,6 @@ const errors: Record<string, string> = {
 @Component({ imports: [FormsModule], templateUrl: './directories.html' })
 export class Directories {
   readonly data = inject(InventoryData);
-  private readonly functions = inject(LocalFunctions);
   private readonly registry = inject(RegistryState);
   readonly tree = computed(() => locationTree(this.data.cards(), this.data.locations()));
   readonly selected = signal<InventoryLocation | null>(null);
@@ -91,8 +89,8 @@ export class Directories {
     if (!editor || this.busy() || !name) return;
     const { action, level, path } = editor;
     const resultPath = { ...path, [level]: name };
-    const command: Command = action === 'rename' ? { action, path, name } : { action, path: resultPath };
-    await this.perform(command, result => {
+    const command: DirectoryCommand = action === 'rename' ? { action, path, name } : { action, path: resultPath };
+    await this.perform(command, () => {
       if (action === 'rename') {
         const selection = this.registry.place();
         if (selection?.building === path.building && (!path.floor || selection.floor === path.floor)
@@ -101,7 +99,7 @@ export class Directories {
         }
       }
       this.select(resultPath.building, resultPath.floor, resultPath.room);
-      this.notice.set(action === 'create' ? 'Запись добавлена.' : 'Название обновлено. Карточек обновлено: ' + result.updatedCards + '.');
+      this.notice.set(action === 'create' ? 'Запись добавлена.' : 'Название обновлено.');
     });
   }
 
@@ -130,15 +128,14 @@ export class Directories {
     });
   }
 
-  private async perform(command: Command, complete: (result: { updatedCards: number }) => void): Promise<void> {
+  private async perform(command: DirectoryCommand, complete: () => void): Promise<void> {
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     this.notice.set('');
     try {
-      const result = await this.functions.invoke<Command, { updatedCards: number }>('manageLocations', command);
-      await this.data.refreshCards();
-      complete(result);
+      await this.data.updateDirectory(command);
+      complete();
     } catch (error) {
       const message = (error as { message?: string } | null)?.message;
       this.error.set(message && Object.hasOwn(errors, message) ? errors[message] : 'Не удалось сохранить справочник. Попробуйте ещё раз.');

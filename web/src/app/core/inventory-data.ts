@@ -5,9 +5,9 @@ import { EmailAuthProvider, connectAuthEmulator, initializeAuth, inMemoryPersist
 import type { Auth } from 'firebase/auth';
 import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore,
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
-import type { DocumentData, Firestore, Transaction } from 'firebase/firestore/lite';
-import { locationFields, locationId, locationParents, validDirectoryLocation,
-  type InventoryLocation } from '../../../../functions/location-directory.mjs';
+import type { DocumentData, Firestore } from 'firebase/firestore/lite';
+import type { InventoryLocation } from '../../../../functions/location-directory.mjs';
+import { changeDirectory, indexLocation, loadDirectory, resolveCardLocation, touchDirectory, type DirectoryCommand } from './directory-store';
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
 import { meetsPasswordPolicy, passwordHint } from './password-policy';
@@ -105,23 +105,14 @@ function requiredAssignment(value: Assignment, defaults?: Required<Assignment>):
     comment: value.comment ?? defaults?.comment ?? '' };
 }
 
-async function addLocation(transaction: Transaction, db: Firestore, value: InventoryLocation): Promise<void> {
-  const ids = await Promise.all(locationParents(value).map(locationId));
-  const ref = doc(db, 'locations', ids.at(-1)!);
-  const [current, ...aliases] = await Promise.all([
-    transaction.get(ref), ...ids.map(id => transaction.get(doc(db, 'locationRenames', id))),
-  ]);
-  if (aliases.some(alias => alias.data()?.['kind'] === 'DELETED')) {
-    throw new InventoryError('Расположение удалено. Укажите актуальные здание, этаж и кабинет из справочника.');
+function directoryError(error: unknown): never {
+  if (error instanceof Error && error.message === 'location-deleted') {
+    throw new InventoryError('Расположение удалено. Укажите актуальные здание, этаж и кабинет.');
   }
-  if (aliases.some(alias => alias.exists())) {
-    throw new InventoryError('Расположение переименовано. Укажите актуальные здание, этаж и кабинет из справочника.');
+  if (error instanceof Error && error.message === 'location-renamed') {
+    throw new InventoryError('Расположение переименовано. Укажите актуальные здание, этаж и кабинет.');
   }
-  const stored = current.data();
-  if (!stored) transaction.set(ref, locationFields(value));
-  else if (stored['building'] !== value.building || stored['floor'] !== value.floor || stored['room'] !== value.room) {
-    throw new InventoryError('Не удалось сверить запись в справочнике расположений.');
-  }
+  throw error;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -143,6 +134,7 @@ export class InventoryData {
   readonly reportsLoading = signal(false);
   private readonly firebase = inject(firebaseOptions);
   readonly configured = this.firebase !== null;
+  private readonly originalCards = new WeakMap<ComputerDocument, ComputerDocument>();
   private cardsRequest = 0;
   private reportsRequest = 0;
 
@@ -269,6 +261,18 @@ export class InventoryData {
     return connection;
   }
 
+  private presentCard(card: ComputerDocument, currentLocation: InventoryLocation): ComputerDocument {
+    const presented = { ...card, ...currentLocation };
+    this.originalCards.set(presented, card);
+    return presented;
+  }
+
+  async updateDirectory(command: DirectoryCommand): Promise<void> {
+    const { db } = this.adminConnection();
+    await changeDirectory(db, command);
+    await this.refreshCards();
+  }
+
   async refreshCards(): Promise<void> {
     const { db } = this.connection();
     const request = ++this.cardsRequest;
@@ -278,7 +282,7 @@ export class InventoryData {
     try {
       const [snapshots, directory] = await Promise.all([
         getDocs(collection(db, 'computers')),
-        getDocs(collection(db, 'locations')).catch(() => null),
+        loadDirectory(db).catch(() => null),
       ]);
       const records = snapshots.docs.map(item => {
         const card = readComputer(decode(item.data()));
@@ -286,8 +290,8 @@ export class InventoryData {
         return card;
       });
       if (request !== this.cardsRequest) return;
-      this.cards.set(records);
-      this.locations.set(directory?.docs.map(item => item.data()).filter(validDirectoryLocation).map(locationFields) ?? []);
+      this.cards.set(directory ? records.map(card => this.presentCard(card, directory.resolve(card))) : records);
+      this.locations.set(directory?.locations ?? []);
       if (!directory) this.locationsError.set('Не удалось загрузить справочник расположений.');
       this.cardsLoaded.set(true);
     } catch (error) {
@@ -338,7 +342,8 @@ export class InventoryData {
     if (!snapshot.exists()) return null;
     const card = readComputer(decode(snapshot.data()));
     if (card.deviceId !== id) throw new InventoryError('Обнаружена карточка с неверным идентификатором.');
-    return card;
+    const currentLocation = await resolveCardLocation(db, card);
+    return this.presentCard(card, currentLocation);
   }
 
   async createCard(entry: Entry): Promise<string> {
@@ -351,7 +356,7 @@ export class InventoryData {
     await runTransaction(db, async transaction => {
       const ref = doc(db, 'computers', id);
       if ((await transaction.get(ref)).exists()) throw new InventoryError('Идентификатор занят. Повторите сохранение.');
-      await addLocation(transaction, db, card);
+      await indexLocation(transaction, db, card).catch(directoryError);
       transaction.set(ref, { ...card, assignmentUpdatedAt: serverTimestamp() });
     });
     await this.refreshCards();
@@ -362,10 +367,10 @@ export class InventoryData {
     const { db, session } = this.adminConnection();
     const ref = doc(db, 'computers', seen.deviceId);
     await runTransaction(db, async transaction => {
-      sameVersion(decode((await transaction.get(ref)).data()), seen);
+      sameVersion(decode((await transaction.get(ref)).data()), this.originalCards.get(seen) ?? seen);
       const updates = { ...entry.hardware, ...requiredAssignment(entry.assignment) };
       readComputer({ ...seen, ...updates });
-      await addLocation(transaction, db, entry.assignment);
+      await indexLocation(transaction, db, entry.assignment).catch(directoryError);
       transaction.update(ref, { ...updates, assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: session.uid });
     });
     await this.refreshCards();
@@ -375,7 +380,7 @@ export class InventoryData {
     const { db, session } = this.adminConnection();
     const ref = doc(db, 'computers', seen.deviceId);
     await runTransaction(db, async transaction => {
-      sameVersion(decode((await transaction.get(ref)).data()), seen);
+      sameVersion(decode((await transaction.get(ref)).data()), this.originalCards.get(seen) ?? seen);
       transaction.update(ref, { status, assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: session.uid });
     });
     await this.refreshCards();
@@ -385,9 +390,10 @@ export class InventoryData {
     const { db } = this.adminConnection();
     const ref = doc(db, 'computers', seen.deviceId);
     await runTransaction(db, async transaction => {
-      sameVersion(decode((await transaction.get(ref)).data()), seen);
+      sameVersion(decode((await transaction.get(ref)).data()), this.originalCards.get(seen) ?? seen);
       if (seen.status !== 'RETIRED') throw new InventoryError('Сначала архивируйте карточку.');
       transaction.delete(ref);
+      touchDirectory(transaction, db);
     });
     await this.refreshCards();
   }
@@ -416,10 +422,11 @@ export class InventoryData {
       if (status === 'ACCEPTED') {
         const cardRef = doc(db, 'computers', seen.deviceId);
         const snapshot = await transaction.get(cardRef);
-        sameVersion(snapshot.exists() ? decode(snapshot.data()) : null, seenCard);
+        const original = seenCard ? this.originalCards.get(seenCard) ?? seenCard : null;
+        sameVersion(snapshot.exists() ? decode(snapshot.data()) : null, original);
         if (isStale(seen, seenCard)) throw new InventoryError('Отчёт устарел. Его можно отклонить.');
-        await addLocation(transaction, db, location);
-        transaction.set(cardRef, this.acceptedCard(seen, seenCard, selected, session.uid));
+        await indexLocation(transaction, db, location).catch(directoryError);
+        transaction.set(cardRef, this.acceptedCard(seen, original, selected, session.uid));
       }
       transaction.update(ref, { status, reviewedAt: serverTimestamp(), reviewedBy: session.uid });
     });

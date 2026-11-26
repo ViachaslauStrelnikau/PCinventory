@@ -217,6 +217,33 @@ function commitReview(report, card, status = 'ACCEPTED', reviewFields = review(s
   return batch.commit();
 }
 
+test('versioned directory edits keep the collector projection separate from historical names', async () => {
+  const original = { building: 'Корпус Б', floor: '02', room: '010' };
+  const updated = { ...original, building: 'Корпус Д' };
+  const roomId = await locationId(original);
+  const newId = await locationId(updated);
+  const reader = env.authenticatedContext(userId).firestore();
+  const originalRef = doc(admin, 'locations', roomId);
+  const version = doc(admin, 'settings/locationVersion');
+  const alias = doc(admin, 'locationRenames', roomId);
+  await assertSucceeds(setDoc(originalRef, original));
+  await assertFails(deleteDoc(originalRef));
+  await assertFails(setDoc(alias, { ...original, roomId }));
+  await assertFails(setDoc(doc(reader, 'settings/locationVersion'), { updatedAt: serverTimestamp() }));
+  const rename = writeBatch(admin);
+  rename.set(version, { updatedAt: serverTimestamp() });
+  rename.delete(originalRef);
+  rename.set(doc(admin, 'locations', newId), { ...updated, roomId });
+  rename.set(alias, { ...original, roomId });
+  await assertSucceeds(rename.commit());
+  const snapshot = await assertSucceeds(getDocsFromServer(collection(collector, 'locations')));
+  assert.deepEqual(snapshot.docs.map(row => row.data()), [{ ...updated, roomId }]);
+  await assertFails(getDocFromServer(doc(collector, alias.path)));
+  await assertSucceeds(getDocFromServer(doc(reader, alias.path)));
+  await assertFails(setDoc(originalRef, original));
+  await assertFails(deleteDoc(version));
+});
+
 test('only the enabled collector can create a pending report', async () => {
   for (const [uid, db] of [
     [collectorId, env.unauthenticatedContext().firestore()],

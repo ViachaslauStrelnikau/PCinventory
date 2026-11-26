@@ -327,15 +327,54 @@ service cloud.firestore {
         && activeAdminAfter();
     }
 
+    function directoryVersionPath() {
+      return /databases/$(database)/documents/settings/locationVersion;
+    }
+
+    function directoryTouched() {
+      return getAfter(directoryVersionPath()).data.updatedAt == request.time;
+    }
+
+    function directoryVersioned() {
+      return !exists(directoryVersionPath()) || directoryTouched();
+    }
+
+    function locationKey(id) {
+      return id.matches('^[a-f0-9]{64}$');
+    }
+
+    function validDirectoryEntry(location) {
+      return location.keys().hasAll(['building', 'floor', 'room'])
+        && nonBlank(location.building, 256) && blankOrText(location.floor, 64) && blankOrText(location.room, 64)
+        && (location.floor != '' || location.room == '')
+        && (!location.keys().hasAny(['roomId']) || (location.room != '' && locationKey(location.roomId)));
+    }
+
+    match /settings/locationVersion {
+      allow get: if hasEnabledRole('ADMIN');
+      allow create, update: if hasEnabledRole('ADMIN')
+        && request.resource.data.keys().toSet() == ['updatedAt'].toSet()
+        && request.resource.data.updatedAt == request.time;
+    }
+
     match /locations/{id} {
       allow get, list: if canReadComputers() || hasEnabledRole('COLLECTOR');
-      allow create: if hasEnabledRole('ADMIN') && id.matches('^[a-f0-9]{64}$')
-        && request.resource.data.keys().hasOnly(['building', 'floor', 'room'])
-        && validLocation(request.resource.data);
+      allow create, update: if hasEnabledRole('ADMIN') && locationKey(id)
+        && request.resource.data.keys().hasOnly(['building', 'floor', 'room', 'roomId'])
+        && validDirectoryEntry(request.resource.data)
+        && ((request.method == 'create' && request.resource.data.room != ''
+          && !request.resource.data.keys().hasAny(['roomId']) && directoryVersioned()) || directoryTouched());
+      allow delete: if hasEnabledRole('ADMIN') && directoryTouched();
     }
 
     match /locationRenames/{id} {
-      allow get: if hasEnabledRole('ADMIN');
+      allow get, list: if canReadComputers();
+      allow create, update: if hasEnabledRole('ADMIN') && directoryTouched() && locationKey(id)
+        && request.resource.data.keys().hasOnly(['building', 'floor', 'room', 'roomId', 'kind'])
+        && validDirectoryEntry(request.resource.data)
+        && (!request.resource.data.keys().hasAny(['kind']) || (request.resource.data.kind == 'DELETED'
+          && !request.resource.data.keys().hasAny(['roomId'])));
+      allow delete: if hasEnabledRole('ADMIN') && directoryTouched();
     }
 
     match /settings/inventory {
@@ -358,13 +397,15 @@ service cloud.firestore {
 
     match /computers/{deviceId} {
       allow get, list: if canReadComputers();
-      allow create: if hasEnabledRole('ADMIN')
+      allow create: if hasEnabledRole('ADMIN') && directoryVersioned()
         && (request.resource.data.identitySource == 'MANUAL' ? validManualCard(request.resource.data, deviceId)
           : linkedAcceptance(deviceId, request.resource.data, null));
       allow update: if hasEnabledRole('ADMIN')
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['building', 'floor', 'room'])
+          || directoryVersioned())
         && (independentCardUpdate(request.resource.data, resource.data)
           || linkedAcceptance(deviceId, request.resource.data, resource.data));
-      allow delete: if hasEnabledRole('ADMIN') && resource.data.status == 'RETIRED';
+      allow delete: if hasEnabledRole('ADMIN') && resource.data.status == 'RETIRED' && directoryVersioned();
     }
   }
 }
