@@ -41,4 +41,6 @@ Workflow **Deploy Firebase** запускается вручную с ветки
 
 ## Обновления и переезд
 
+Для передачи существующего проекта другому Google-аккаунту используйте [инструкцию по смене владельца Firebase-проекта](FIREBASE_ACCOUNT_MIGRATION.md).
+
 Изменения Angular, правил и индексов публикуются повторным ручным запуском. Для нового проекта повторите начальную настройку, перенастройте GitHub Environment и CI-сборку Windows-агента. Учётные записи Authentication и документы Firestore переносятся отдельно с проверкой UID и связей в `users`, `settings/access`, отчётах, карточках и справочнике. Для карточек, отчётов и справочников используйте локальное копирование и проверку восстановления в отдельном проекте. [Резервная копия Firestore](FIRESTORE_BACKUP.md) Управляемый Firestore export/import требует биллинга и недоступен на Spark. [Управляемый экспорт и импорт Firestore](https://firebase.google.com/docs/firestore/manage-data/export-import)
