@@ -163,25 +163,39 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 }
 .tree-label-text { min-width: 0; }
 .tree-icon {
-  position: relative; flex: 0 0 13px; width: 13px; height: 13px;
-  margin-block-start: .2em; color: var(--muted);
+  position: relative; flex: 0 0 19px; width: 19px; height: 19px;
+  margin-block-start: 1px; border-radius: 4px;
 }
-.tree-icon-building {
-  border: 1.5px solid currentColor; border-radius: 2px 2px 0 0;
-  background: radial-gradient(circle, currentColor 1px, transparent 1.25px) center / 4px 4px;
+.tree-icon::before {
+  content: ""; position: absolute; box-sizing: border-box;
+  border: 1.25px solid currentColor;
 }
-.tree-icon-floor {
-  background: linear-gradient(currentColor 0 0) right 2px / 35% 1.5px,
-    linear-gradient(currentColor 0 0) right center / 68% 1.5px,
-    linear-gradient(currentColor 0 0) right bottom 2px / 100% 1.5px;
+.tree-icon-building { background: #e8efff; color: #2952a0; }
+.tree-icon-building::before {
+  inset: 3px 4px; border-radius: 2px 2px 0 0;
+  background:
+    radial-gradient(circle, currentColor .75px, transparent 1px) 1px 1px / 3px 3px;
+}
+.tree-icon-floor { background: #f0e9fa; color: #65418a; }
+.tree-icon-floor::before {
+  inset: 4px 3px; border-radius: 2px;
+  background: linear-gradient(currentColor 0 0) left top 2px / 100% 1px,
+    linear-gradient(currentColor 0 0) left 3px bottom / 1px 65%;
   background-repeat: no-repeat;
 }
-.tree-icon-room {
-  flex-basis: 10px; margin-inline: 1.5px;
-  border: 1.5px solid currentColor; border-radius: 1px;
-  background: radial-gradient(circle at 73% 55%, currentColor 1px, transparent 1.3px);
+.tree-icon-room { background: #fff0d9; color: #82540d; }
+.tree-icon-room::before {
+  inset: 3px 5px; border-radius: 1px;
+  background: radial-gradient(circle at 73% 55%, currentColor .85px, transparent 1.15px);
 }
-.tree-icon.monitor { height: 9px; }
+.tree-icon-computer { background: #e0f2ee; color: #216553; }
+.tree-icon-computer::before { inset: 4px 3px 7px; border-radius: 2px; }
+.tree-icon-computer::after {
+  content: ""; position: absolute; inset: 12px 6px 3px;
+  background: linear-gradient(currentColor 0 0) center top / 1px 100%,
+    linear-gradient(currentColor 0 0) center bottom / 100% 1px;
+  background-repeat: no-repeat;
+}
 .tree-label mark { background: #ffe69a; color: #302400; border-radius: 2px; }
 .table-panel { overflow: hidden; }
 .table-top, .table-footer { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: .75rem; }

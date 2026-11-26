@@ -52,7 +52,7 @@
                     </summary>
                     @for (card of room.cards; track card.deviceId) {
                       <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
-                        <span class="tree-label"><span class="tree-icon monitor" aria-hidden="true"></span>{{ card.hostname }}</span>
+                        <span class="tree-label"><span class="tree-icon tree-icon-computer" aria-hidden="true"></span>{{ card.hostname }}</span>
                         @if (card.status === 'RETIRED') { <span>В архиве</span> }
                       </a>
                     }
