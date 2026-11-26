@@ -69,6 +69,10 @@ npm --prefix tests/rules test
 
 Workflow **Deploy Firebase** вручную публикует статический веб-интерфейс и настройки Firestore в согласованном проекте. [Настройка Firebase, GitHub Actions и Windows-агента](docs/FIREBASE_DEPLOYMENT.md)
 
+## Резервное копирование
+
+[Создание и проверенное восстановление резервной копии Firestore на Spark](docs/FIRESTORE_BACKUP.md).
+
 ## Локальная регистрация из окна агента
 
 В локальном проекте `demo-pcinventory` создайте временного пользователя в Auth Emulator. В Firestore Emulator добавьте `users/{uid}` с полями `role: "COLLECTOR"` и `enabled: true`, а также `settings/inventory` с логическим полем `acceptingReports: true`. Для проверки используйте разрешённый тестовый ПК или виртуальную машину.

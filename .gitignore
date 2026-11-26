@@ -16,6 +16,7 @@ firebase-debug*.log
 firestore-debug*.log
 ui-debug*.log
 firebase-export-*/
+*.pcinventory-backup.json
 firebase-config.local.*
 firebase-adminsdk-*.json
 gha-creds-*.json
