@@ -92,7 +92,9 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
 }
 
 function matchesLocationSearch(location: InventoryLocation, terms: readonly string[]): boolean {
-  const fields = [location.building, location.floor, location.room].map(value => value.toLowerCase());
+  const { building, floor, room } = location;
+  const fields = [building && `Здание ${building}`, floor && `Этаж ${floor}`, room && `Каб. Кабинет ${room}`]
+    .map(value => value.toLowerCase());
   return terms.every(term => fields.some(field => field.includes(term)));
 }
 
