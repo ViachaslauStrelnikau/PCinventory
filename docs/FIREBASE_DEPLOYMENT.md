@@ -34,6 +34,8 @@ Workflow **Deploy Firebase** запускается вручную с ветки
 
 ## Подключение Windows-агента
 
+В пилотном проекте учётная запись сборщика и четыре GitHub Secrets настроены. Пользователь подтвердил отправку тестового отчёта из Windows 7 SP1 в облачную очередь. [Сборка Windows 9.1](https://github.com/ViachaslauStrelnikau/PCinventory/releases/tag/windows-build-9.1)
+
 Создайте отдельную учётную запись сборщика в Authentication. В Firestore добавьте `users/{uid}` с `role` = `COLLECTOR` и `enabled` = `true`. Настройте четыре GitHub Secrets для сборки агента по [инструкции в README](../README.md). Приём по умолчанию закрыт. Откройте его в веб-настройках, когда будете готовы принять тестовый отчёт.
 
 ## Обновления и переезд
