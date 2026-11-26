@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { type InventoryLocation } from '../../../../shared/location-directory.mjs';
 import { InventoryData } from '../core/inventory-data';
 import type { DirectoryCommand } from '../core/directory-store';
-import { RegistryState, locationTree } from '../registry/registry-state';
+import { RegistryState, locationTree, setLocationTreeOpen } from '../registry/registry-state';
 
 const empty: InventoryLocation = { building: '', floor: '', room: '' };
 const labels = { building: 'Здание', floor: 'Этаж', room: 'Кабинет' } as const;
@@ -36,6 +36,7 @@ export class Directories {
   readonly notice = signal('');
   readonly error = signal('');
   readonly labels = labels;
+  readonly setTreeOpen = setLocationTreeOpen;
   readonly deleteBlock = computed(() => {
     const selected = this.selected();
     if (!selected) return '';
@@ -54,10 +55,6 @@ export class Directories {
   draft = '';
 
   constructor() { void this.data.refreshCards(); }
-
-  setTreeOpen(tree: HTMLElement, open: boolean): void {
-    for (const branch of tree.querySelectorAll<HTMLDetailsElement>('details')) branch.open = open;
-  }
 
   matches(building: string, floor = '', room = ''): boolean {
     const selected = this.selected();

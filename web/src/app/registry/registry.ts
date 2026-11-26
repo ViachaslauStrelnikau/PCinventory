@@ -2,13 +2,14 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { InventoryData } from '../core/inventory-data';
-import { RegistryState, collator, columns, filters, missing } from './registry-state';
+import { RegistryState, collator, columns, filters, missing, setLocationTreeOpen } from './registry-state';
 import { exportCards } from './xlsx-export';
 
 @Component({ selector: 'app-registry', imports: [FormsModule, RouterLink], templateUrl: './registry.html' })
 export class Registry {
   readonly data = inject(InventoryData);
   readonly state = inject(RegistryState);
+  readonly setTreeOpen = setLocationTreeOpen;
   readonly columns = columns;
   readonly filters = filters;
   readonly missing = missing;

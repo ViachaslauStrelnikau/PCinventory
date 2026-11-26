@@ -91,6 +91,10 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
     && (!place.room || card.room === place.room);
 }
 
+export function setLocationTreeOpen(tree: HTMLElement, open: boolean): void {
+  for (const branch of tree.querySelectorAll<HTMLDetailsElement>('details')) branch.open = open;
+}
+
 export function locationTree(cards: readonly ComputerDocument[], locations: readonly InventoryLocation[]) {
   const buildings = new Map<string, Map<string, Map<string, ComputerDocument[]>>>();
   function add({ building, floor, room }: InventoryLocation, card?: ComputerDocument): void {

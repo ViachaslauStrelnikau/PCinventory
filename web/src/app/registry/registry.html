@@ -47,30 +47,55 @@
 <div class="registry-grid">
   <aside class="panel location-tree" aria-label="Расположение">
     <h2>Расположение</h2>
+    <div class="location-tree-actions">
+      <button type="button" aria-controls="registry-location-tree" [disabled]="!state.tree().length"
+        (click)="setTreeOpen(treeNodes, true)">Развернуть все</button>
+      <button type="button" aria-controls="registry-location-tree" [disabled]="!state.tree().length"
+        (click)="setTreeOpen(treeNodes, false)">Свернуть все</button>
+    </div>
     @if (data.locationsError()) { <p class="muted" role="status">{{ data.locationsError() }}</p> }
     <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
       Все здания <span>{{ state.filteredWithoutPlace().length }}</span>
     </button>
-    @for (building of state.tree(); track building.name) {
-      <details #buildingNode>
-        <summary>
-          <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && !state.place()?.floor"
-            (click)="state.setPlace({ building: building.name }); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
-        </summary>
-        @for (floor of building.floors; track floor.name) {
-          <details #floorNode class="tree-indent">
-            <summary>
-              <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && !state.place()?.room"
-                (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
-            </summary>
-            @for (room of floor.rooms; track room.name) {
-              <button type="button" class="tree-button tree-indent" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && state.place()?.room === room.name"
-                (click)="state.setPlace({ building: building.name, floor: floor.name, room: room.name })">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
-            }
-          </details>
-        }
-      </details>
-    }
+    <div id="registry-location-tree" #treeNodes>
+      @for (building of state.tree(); track building.name) {
+        <details #buildingNode>
+          <summary>
+            <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && !state.place()?.floor"
+              (click)="state.setPlace({ building: building.name }); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+          </summary>
+          @for (floor of building.floors; track floor.name) {
+            <details #floorNode class="tree-indent">
+              <summary>
+                <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && !state.place()?.room"
+                  (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+              </summary>
+              @for (room of floor.rooms; track room.name) {
+                @let place = { building: building.name, floor: floor.name, room: room.name };
+                @let selected = state.place()?.building === place.building && state.place()?.floor === place.floor && state.place()?.room === place.room;
+                @if (room.cards.length) {
+                  <details #roomNode class="tree-indent">
+                    <summary>
+                      <button type="button" class="tree-button" [class.selected]="selected"
+                        (click)="state.setPlace(place); roomNode.open = true">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                    </summary>
+                    @for (card of room.cards; track card.deviceId) {
+                      <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
+                        {{ card.hostname }}
+                        @if (card.status === 'RETIRED') { <span>В архиве</span> }
+                      </a>
+                    }
+                  </details>
+                } @else {
+                  <button type="button" class="tree-button tree-indent" [class.selected]="selected"
+                    (click)="state.setPlace(place)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                }
+              }
+            </details>
+          }
+        </details>
+      }
+    </div>
   </aside>
   <section class="panel table-panel" aria-label="Компьютеры">
     <div class="table-top">

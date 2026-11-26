@@ -11,11 +11,11 @@
 <div class="registry-grid directory-grid">
   <section class="panel location-tree" aria-label="Дерево расположений">
     <h2>Расположение</h2>
-    <div class="actions directory-tree-actions">
+    <div class="location-tree-actions">
       <button type="button" aria-controls="directory-tree" [disabled]="!tree().length"
-        (click)="setTreeOpen(treeNodes, true)">Раскрыть всё дерево</button>
+        (click)="setTreeOpen(treeNodes, true)">Развернуть все</button>
       <button type="button" aria-controls="directory-tree" [disabled]="!tree().length"
-        (click)="setTreeOpen(treeNodes, false)">Закрыть всё дерево</button>
+        (click)="setTreeOpen(treeNodes, false)">Свернуть все</button>
     </div>
     @if (data.cardsLoading() && !tree().length) { <p role="status">Загрузка…</p> }
     <div id="directory-tree" #treeNodes>
