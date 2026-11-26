@@ -91,6 +91,11 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
     && (!place.room || card.room === place.room);
 }
 
+function matchesLocationSearch(location: InventoryLocation, terms: readonly string[]): boolean {
+  const fields = [location.building, location.floor, location.room].map(value => value.toLowerCase());
+  return terms.every(term => fields.some(field => field.includes(term)));
+}
+
 export function setLocationTreeOpen(tree: HTMLElement, open: boolean): void {
   for (const branch of tree.querySelectorAll<HTMLDetailsElement>('details')) branch.open = open;
 }
@@ -126,6 +131,8 @@ export function locationTree(cards: readonly ComputerDocument[], locations: read
 export class RegistryState {
   private readonly data = inject(InventoryData);
   readonly text = signal('');
+  readonly locationSearch = signal('');
+  private readonly locationTerms = computed(() => this.locationSearch().toLowerCase().split(/[\s/]+/).filter(Boolean));
   readonly status = signal<'ACTIVE' | 'RETIRED' | 'ALL'>('ACTIVE');
   readonly place = signal<Place | null>(null);
   readonly choices = signal<Record<string, string[]>>({});
@@ -140,6 +147,7 @@ export class RegistryState {
 
   readonly filteredWithoutPlace = computed(() => {
     const text = this.text().trim().toLowerCase();
+    const terms = this.locationTerms();
     const status = this.status();
     const choices = this.choices();
     const min = this.minRam();
@@ -153,6 +161,7 @@ export class RegistryState {
         && (!text || [card.hostname, card.cpuModel, ...card.gpuModels, card.employeeName, card.department,
           ...card.staticIpv4, card.room, card.inventoryNumber, card.building, card.floor]
           .some(value => value?.toLowerCase().includes(text)))
+        && (!terms.length || matchesLocationSearch(card, terms))
         && filters.every(filter => !choices[filter.key]?.length
           || filter.values(card).some(value => choices[filter.key].includes(value)))
         && (min === null || (card.ramTotalGiB !== null && card.ramTotalGiB >= min))
@@ -161,7 +170,11 @@ export class RegistryState {
         && (end === null || (scanned !== null && scanned < end));
     });
   });
-  readonly tree = computed(() => locationTree(this.filteredWithoutPlace(), this.data.locations()));
+  readonly tree = computed(() => {
+    const terms = this.locationTerms();
+    const locations = this.data.locations();
+    return locationTree(this.filteredWithoutPlace(), terms.length ? locations.filter(location => matchesLocationSearch(location, terms)) : locations);
+  });
   readonly filtered = computed(() => {
     const place = this.place();
     const { column, ascending } = this.sort();
@@ -180,12 +193,17 @@ export class RegistryState {
   readonly currentPage = computed(() => Math.min(this.page(), this.pages()));
   readonly rows = computed(() => this.filtered().slice((this.currentPage() - 1) * this.size(), this.currentPage() * this.size()));
   readonly filterCount = computed(() => Object.values(this.choices()).filter(value => value.length).length
-    + (this.place() ? 1 : 0) + (this.status() === 'ACTIVE' ? 0 : 1)
+    + (this.place() ? 1 : 0) + (this.locationTerms().length ? 1 : 0) + (this.status() === 'ACTIVE' ? 0 : 1)
     + (this.minRam() !== null || this.maxRam() !== null ? 1 : 0) + (this.fromDate() || this.toDate() ? 1 : 0));
   readonly location = computed(() => {
     const place = this.place();
     return place ? [place.building, place.floor, place.room].filter(Boolean).join(' / ') : '';
   });
+
+  searchLocations(value: string): void {
+    this.locationSearch.set(value);
+    this.setPlace(null);
+  }
 
   setPlace(place: Place | null): void { this.place.set(place); this.page.set(1); }
 
@@ -196,6 +214,7 @@ export class RegistryState {
 
   reset(): void {
     this.text.set('');
+    this.locationSearch.set('');
     this.status.set('ACTIVE');
     this.place.set(null);
     this.choices.set({});

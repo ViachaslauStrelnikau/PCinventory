@@ -133,6 +133,7 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
   padding: .85rem .7rem;
 }
 .location-tree h2 { margin: 0 .35rem .55rem; }
+.location-search { width: 100%; margin-bottom: .55rem; }
 .location-tree-actions { display: flex; gap: .25rem; margin-bottom: .55rem; }
 .location-tree-actions button { padding: .35rem .3rem; font-size: .85rem; }
 .directory-path { margin-bottom: .75rem; overflow-wrap: anywhere; }

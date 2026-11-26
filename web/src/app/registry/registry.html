@@ -47,6 +47,8 @@
 <div class="registry-grid">
   <aside class="panel location-tree" aria-label="Расположение">
     <h2>Расположение</h2>
+    <input class="location-search" type="search" aria-label="Поиск по расположению" placeholder="Здание, этаж, кабинет"
+      [ngModel]="state.locationSearch()" (ngModelChange)="state.searchLocations($event)">
     <div class="location-tree-actions">
       <button type="button" aria-controls="registry-location-tree" [disabled]="!state.tree().length"
         (click)="setTreeOpen(treeNodes, true)">Развернуть все</button>
