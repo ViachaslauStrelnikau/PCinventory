@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { type InventoryLocation } from '../../../../functions/location-directory.mjs';
+import { type InventoryLocation } from '../../../../shared/location-directory.mjs';
 import { InventoryData } from '../core/inventory-data';
 import type { DirectoryCommand } from '../core/directory-store';
 import { RegistryState, locationTree } from '../registry/registry-state';

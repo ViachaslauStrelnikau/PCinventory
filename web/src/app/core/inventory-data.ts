@@ -6,7 +6,7 @@ import type { Auth } from 'firebase/auth';
 import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore,
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
 import type { DocumentData, Firestore } from 'firebase/firestore/lite';
-import type { InventoryLocation } from '../../../../functions/location-directory.mjs';
+import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
 import { changeDirectory, indexLocation, loadDirectory, resolveCardLocation, touchDirectory, type DirectoryCommand } from './directory-store';
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
@@ -61,6 +61,7 @@ export function messageFor(error: unknown): string {
     return 'Проверьте почту и пароль.';
   }
   if (code === 'auth/email-already-in-use') return 'Учётная запись уже существует. Войдите с этой почтой.';
+  if (code === 'auth/weak-password' || code === 'auth/password-does-not-meet-requirements') return passwordHint;
   if (code === 'auth/invalid-email') return 'Проверьте адрес электронной почты.';
   if (code === 'auth/too-many-requests') return 'Слишком много попыток. Попробуйте позже.';
   if (code === 'unavailable' || code === 'auth/network-request-failed') return 'Нет связи с Firebase.';

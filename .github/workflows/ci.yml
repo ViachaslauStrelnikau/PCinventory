@@ -45,9 +45,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: |
-            tests/rules/package-lock.json
-            functions/package-lock.json
+          cache-dependency-path: tests/rules/package-lock.json
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -55,5 +53,3 @@ jobs:
       - run: npm --prefix tests/rules ci
       - run: npm --prefix tests/rules test
       - run: npm --prefix tests/rules run test:agent
-      - run: npm --prefix functions ci
-      - run: npx --yes firebase-tools@15.37.0 emulators:exec --project demo-pcinventory --only auth,firestore,functions "npm --prefix functions test"

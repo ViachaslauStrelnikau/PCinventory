@@ -5,6 +5,7 @@
 /web/out-tsc/
 /tests/rules/node_modules/
 /functions/node_modules/
+/tools/emulator/node_modules/
 
 .env
 .env.*
@@ -17,4 +18,5 @@ ui-debug*.log
 firebase-export-*/
 firebase-config.local.*
 firebase-adminsdk-*.json
+gha-creds-*.json
 service-account*.json

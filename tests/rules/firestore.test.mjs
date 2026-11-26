@@ -13,7 +13,7 @@ import {
   where, writeBatch,
 } from 'firebase/firestore';
 import pendingFixture from '../../contracts/fixtures/pending-report.json' with { type: 'json' };
-import { locationId } from '../../functions/location-directory.mjs';
+import { locationId } from '../../shared/location-directory.mjs';
 
 const projectId = 'demo-pcinventory';
 const collectorId = 'test-collector';
@@ -196,7 +196,7 @@ function acceptedCard(report, previous) {
   };
 }
 
-async function accept(reportId) {
+async function accept(reportId, indexLocation = false) {
   return runTransaction(admin, async transaction => {
     const reportRef = doc(admin, reportPath(reportId));
     const report = (await transaction.get(reportRef)).data();
@@ -205,6 +205,13 @@ async function accept(reportId) {
     }
     const cardRef = doc(admin, cardPath(report.deviceId));
     const previous = (await transaction.get(cardRef)).data();
+    if (indexLocation) {
+      const { building, floor, room } = report.assignment;
+      const location = { building, floor, room };
+      const locationRef = doc(admin, 'locations', await locationId(location));
+      if (!(await transaction.get(locationRef)).exists()) transaction.set(locationRef, location);
+      transaction.set(doc(admin, 'settings/locationVersion'), { updatedAt: serverTimestamp() });
+    }
     transaction.set(cardRef, acceptedCard(report, previous));
     transaction.update(reportRef, review());
   });
@@ -287,8 +294,10 @@ test('a fully populated report fits the rules budget and can be accepted', async
     computerManufacturer: 'Test Manufacturer',
     computerModel: 'Test Tower',
   });
+  await seed({ 'settings/locationVersion': { updatedAt: Timestamp.now() } });
   await assertSucceeds(submit(pending));
-  await assertSucceeds(accept(firstId));
+  await assertFails(accept(firstId));
+  await assertSucceeds(accept(firstId, true));
   const card = (await getDocFromServer(doc(admin, cardPath(deviceId)))).data();
   assert.equal(card.employeeName, pending.assignment.employeeName);
   assert.equal(card.computerModel, pending.hardware.computerModel);
@@ -302,7 +311,7 @@ test('a fully populated report fits the rules budget and can be accepted', async
     networks: [{ name: 'Ethernet', mode: 'DHCP', staticIpv4: [] }],
   };
   await assertSucceeds(submit(dhcpReport));
-  await assertSucceeds(accept(secondId));
+  await assertSucceeds(accept(secondId, true));
   assert.equal((await getDocFromServer(doc(admin, cardPath(dhcpReport.deviceId)))).data().networkMode, 'DHCP');
 });
 
@@ -577,7 +586,8 @@ test('new acceptance preserves omitted fields and the archived status, and rejec
   const pending = await submit(newer);
   await assertFails(commitReview(pending, { ...acceptedCard(pending, previous), inventoryNumber: '' }));
   await assertFails(commitReview(pending, { ...acceptedCard(pending, previous), status: 'ACTIVE' }));
-  await assertSucceeds(accept(secondId));
+  await seed({ 'settings/locationVersion': { updatedAt: Timestamp.now() } });
+  await assertSucceeds(accept(secondId, true));
   const updated = (await getDocFromServer(cardRef)).data();
   assert.equal(updated.hostname, 'UPDATED-TEST-PC');
   assert.equal(updated.status, 'RETIRED');

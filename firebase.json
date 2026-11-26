@@ -3,15 +3,17 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "functions": { "source": "functions", "runtime": "nodejs24" },
   "hosting": {
     "public": "web/dist/pcinventory/browser",
+    "headers": [{
+      "source": "/firebase-web-config.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]
   },
   "emulators": {
     "auth": { "host": "127.0.0.1", "port": 9099 },
     "firestore": { "host": "127.0.0.1", "port": 8080 },
-    "functions": { "host": "127.0.0.1", "port": 5001 },
     "hosting": { "host": "127.0.0.1", "port": 5000 },
     "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
     "singleProjectMode": true

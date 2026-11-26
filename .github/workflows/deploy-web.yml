@@ -1,0 +1,69 @@
+name: Deploy Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: Firebase project ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: firebase
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      REQUESTED_FIREBASE_PROJECT_ID: ${{ inputs.project_id }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      FIREBASE_WEB_APP_ID: ${{ vars.FIREBASE_WEB_APP_ID }}
+      FIREBASE_WEB_API_KEY: ${{ vars.FIREBASE_WEB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            tests/rules/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify Firebase deployment settings
+        run: node web/tools/firebase-web-config.mjs --check
+      - run: npm --prefix web ci
+      - run: npm --prefix web run test:contracts
+      - run: npm --prefix web run build
+      - run: node web/tools/firebase-web-config.mjs
+      - run: npm --prefix tests/rules ci
+      - run: npm --prefix tests/rules test
+      - name: Prepare the Firebase CLI
+        run: npm install --prefix "$RUNNER_TEMP/pcinventory-firebase-cli" --no-save firebase-tools@15.37.0
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.FIREBASE_WIF_PROVIDER }}
+          service_account: ${{ vars.FIREBASE_DEPLOY_SERVICE_ACCOUNT }}
+      - name: Check that Hosting and Firestore are already provisioned
+        run: |
+          firebase_cli="$RUNNER_TEMP/pcinventory-firebase-cli/node_modules/.bin/firebase"
+          "$firebase_cli" firestore:databases:get '(default)' --project "$FIREBASE_PROJECT_ID" --non-interactive
+          "$firebase_cli" hosting:sites:get "$FIREBASE_PROJECT_ID" --project "$FIREBASE_PROJECT_ID" --non-interactive
+      - name: Deploy Hosting and Firestore
+        run: |
+          "$RUNNER_TEMP/pcinventory-firebase-cli/node_modules/.bin/firebase" deploy \
+            --only hosting,firestore --project "$FIREBASE_PROJECT_ID" --non-interactive

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { locationFields, locationId, validLocation } from './location-directory.mjs';
+import { locationFields, locationId, locationParents, validLocation } from '../../shared/location-directory.mjs';
 
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (!/^127\.0\.0\.1:\d+$/.test(host ?? '')) {
@@ -8,11 +8,14 @@ if (!/^127\.0\.0\.1:\d+$/.test(host ?? '')) {
 }
 initializeApp({ projectId: 'demo-pcinventory' });
 const db = getFirestore();
-const cards = await db.collection('computers').get();
+const [cards, aliases] = await Promise.all([db.collection('computers').get(), db.collection('locationRenames').get()]);
+const oldIds = new Set(aliases.docs.map(alias => alias.id));
 const locations = new Map();
 for (const card of cards.docs) {
   const value = card.data();
-  if (validLocation(value)) locations.set(await locationId(value), locationFields(value));
+  if (!validLocation(value)) continue;
+  const ids = await Promise.all(locationParents(value).map(locationId));
+  if (!ids.some(id => oldIds.has(id))) locations.set(ids.at(-1), locationFields(value));
 }
 const writer = db.bulkWriter();
 let added = 0;

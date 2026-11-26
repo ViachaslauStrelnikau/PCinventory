@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, Timestamp, where } from 'firebase/firestore/lite';
 import type { Firestore, Transaction } from 'firebase/firestore/lite';
 import { locationFields, locationId, locationParents, validDirectoryLocation,
-  type InventoryLocation } from '../../../../functions/location-directory.mjs';
+  type InventoryLocation } from '../../../../shared/location-directory.mjs';
 
 export type DirectoryCommand = { action: 'create'; path: InventoryLocation }
   | { action: 'delete'; path: InventoryLocation }

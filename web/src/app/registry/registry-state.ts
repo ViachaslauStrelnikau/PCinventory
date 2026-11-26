@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { InventoryData } from '../core/inventory-data';
 import type { ComputerDocument, ContractTimestamp, Disk, Hardware, WarningCode } from '../core/contracts/inventory-types';
-import type { InventoryLocation } from '../../../../functions/location-directory.mjs';
+import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
 
 export const missing = '—';
 export const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
