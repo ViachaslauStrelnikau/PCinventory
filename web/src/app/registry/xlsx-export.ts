@@ -12,14 +12,15 @@ export async function exportCards(cards: readonly ComputerDocument[]): Promise<v
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Компьютеры');
   const dateHeader = 'Инвентаризация';
+  const alignment = { wrapText: true };
   sheet.columns = [
     'Здание', 'Этаж', 'Кабинет', 'Инвентарный №', 'Имя ПК', 'ФИО', 'Подразделение',
     'Процессор', 'Ядра', 'Потоки', 'ОЗУ (GiB)', 'Тип ОЗУ', 'Всего слотов', 'Занято слотов',
     'Свободно слотов', 'Материнская плата', 'Видеокарты', 'Накопители', 'Объём дисков (байты)',
     'ОС', 'Сеть', 'Статические IPv4', 'Статус', dateHeader, 'Примечание', 'Идентификатор',
   ].map(header => header === dateHeader
-    ? { header, width: 22, style: { numFmt: 'dd.mm.yyyy hh:mm' } }
-    : { header, width: Math.max(15, header.length + 4) });
+    ? { header, width: 22, style: { alignment, numFmt: 'dd.mm.yyyy hh:mm' } }
+    : { header, width: Math.max(15, header.length + 4), style: { alignment } });
   const header = sheet.getRow(1);
   header.font = { bold: true };
   const headerBorder = cellBorder('thick');
