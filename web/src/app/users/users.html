@@ -1,52 +1,34 @@
 <header class="page-heading">
-  <div><h1>Пользователи</h1><p>Учётные записи и роли веб-приложения</p></div>
+  <div><h1>Пользователи</h1><p>Запросы на доступ и роли веб-приложения</p></div>
   <div class="actions">
     <button type="button" (click)="refresh()" [disabled]="loading() || busy()">Обновить</button>
-    <button type="button" class="primary" (click)="open('create')" [disabled]="busy()">Добавить пользователя</button>
   </div>
 </header>
 
 @if (error()) { <p role="alert" class="notice error">{{ error() }}</p> }
 @if (notice()) { <p role="status" class="notice success">{{ notice() }}</p> }
 
-@if (editor(); as mode) {
+<p class="muted">Новые пользователи отправляют запрос со страницы входа после подтверждения почты.</p>
+
+@if (selected(); as user) {
   <form class="panel editor" (ngSubmit)="save()" #form="ngForm">
     <fieldset [disabled]="busy()">
-      <h2>{{ mode === 'create' ? 'Новый пользователь' : mode === 'email' ? 'Изменение почты' : 'Редактирование профиля' }}</h2>
+      <h2>{{ user.pending ? 'Одобрение запроса' : 'Редактирование профиля' }}</h2>
+      <p>{{ user.email || user.uid }}</p>
       <div class="form-grid">
-        @if (mode !== 'profile') {
-          <label>Почта<input name="email" type="email" [email]="true" required maxlength="254" autocomplete="off" [(ngModel)]="email"></label>
-        }
-        @if (mode === 'create') {
-          <label>Пароль<input name="password" type="password" required [minlength]="passwordMinLength" [maxlength]="passwordMaxLength"
-            autocomplete="new-password" aria-describedby="user-password-rule" [(ngModel)]="password"></label>
-          <label>Повторите пароль<input name="passwordConfirmation" type="password" required [maxlength]="passwordMaxLength"
-            autocomplete="new-password" aria-describedby="user-password-mismatch" [(ngModel)]="passwordConfirmation"></label>
-        }
-        @if (mode !== 'email') {
-          <label>Имя<input name="displayName" maxlength="120" [(ngModel)]="displayName"></label>
-          <label><span id="user-role-label">Роль</span>
-            <select name="role" aria-labelledby="user-role-label" [(ngModel)]="role" [disabled]="!!selected() && lastAdmin(selected()!)">
-              <option value="USER">Пользователь</option>
-              <option value="ADMIN">Администратор</option>
-            </select>
-          </label>
-        }
+        <label>Имя<input name="displayName" maxlength="120" [(ngModel)]="displayName"></label>
+        <label>Роль
+          <select name="role" [(ngModel)]="role" [disabled]="lastAdmin(user)">
+            <option value="USER">Пользователь</option>
+            <option value="ADMIN">Администратор</option>
+          </select>
+        </label>
       </div>
-      @if (mode === 'create') {
-        <p class="muted editor-actions" id="user-password-rule">{{ passwordHint }}</p>
-        <div aria-live="polite" id="user-password-mismatch">
-          @if (passwordConfirmation && password !== passwordConfirmation) { <p class="danger-text">Пароли не совпадают.</p> }
-        </div>
-      }
-      @if (mode === 'profile' && selected() && lastAdmin(selected()!)) {
+      @if (lastAdmin(user)) {
         <p class="muted editor-actions">Роль последнего активного администратора защищена.</p>
       }
-      @if (mode === 'email' && selected()?.uid === data.session()?.uid) {
-        <p class="muted editor-actions">После смены своей почты войдите заново с новым адресом.</p>
-      }
       <div class="actions editor-actions">
-        <button type="submit" class="primary" [disabled]="!form.valid || busy() || (mode === 'create' && !validPasswordPair)">{{ busy() ? 'Сохранение…' : mode === 'create' ? 'Создать пользователя' : 'Сохранить' }}</button>
+        <button type="submit" class="primary" [disabled]="!form.valid || busy()">{{ busy() ? 'Сохранение…' : user.pending ? 'Одобрить доступ' : 'Сохранить' }}</button>
         <button type="button" (click)="close()" [disabled]="busy()">Отмена</button>
       </div>
     </fieldset>
@@ -79,15 +61,16 @@
               <td>{{ user.displayName || '—' }}</td>
               <td>{{ roleLabels[user.role] }}</td>
               <td>
-                <span class="badge" [class.good]="user.enabled && user.authAvailable">{{ !user.enabled ? 'Отключён' : user.authAvailable ? 'Активен' : 'Вход недоступен' }}</span>
+                <span class="badge" [class.good]="user.enabled">{{ user.pending ? 'Ожидает одобрения' : user.enabled ? 'Активен' : 'Отключён' }}</span>
                 @if (lastAdmin(user)) { <div class="muted">Последний администратор</div> }
               </td>
               <td>
                 <div class="actions">
-                  <button type="button" (click)="open('profile', user)" [disabled]="busy()">Редактировать</button>
-                  <button type="button" (click)="open('email', user)" [disabled]="busy() || !user.email">Изменить почту</button>
-                  <button type="button" (click)="confirmStatus(user)" [class.danger-text]="user.enabled"
-                    [disabled]="busy() || lastAdmin(user)">{{ user.enabled ? 'Деактивировать' : 'Восстановить доступ' }}</button>
+                  <button type="button" (click)="open(user)" [disabled]="busy()">{{ user.pending ? 'Рассмотреть запрос' : 'Редактировать' }}</button>
+                  @if (!user.pending) {
+                    <button type="button" (click)="confirmStatus(user)" [class.danger-text]="user.enabled"
+                      [disabled]="busy() || lastAdmin(user)">{{ user.enabled ? 'Деактивировать' : 'Восстановить доступ' }}</button>
+                  }
                 </div>
               </td>
             </tr>

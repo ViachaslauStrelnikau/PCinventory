@@ -1,7 +1,7 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import { EmailAuthProvider, connectAuthEmulator, initializeAuth, inMemoryPersistence, reauthenticateWithCredential,
-  signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth';
+  createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth';
 import type { Auth } from 'firebase/auth';
 import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore,
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
@@ -11,6 +11,7 @@ import { locationFields, locationId, locationParents, validDirectoryLocation,
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
 import { meetsPasswordPolicy, passwordHint } from './password-policy';
+import { firebaseOptions, localFirebase } from './firebase-environment';
 
 export const optionalFields = { inventoryNumber: 'Инвентарный №', employeeName: 'ФИО сотрудника',
   department: 'Подразделение', comment: 'Примечание' } as const;
@@ -59,7 +60,10 @@ export function messageFor(error: unknown): string {
   if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
     return 'Проверьте почту и пароль.';
   }
-  if (code === 'unavailable' || code === 'auth/network-request-failed') return 'Нет связи с локальным эмулятором.';
+  if (code === 'auth/email-already-in-use') return 'Учётная запись уже существует. Войдите с этой почтой.';
+  if (code === 'auth/invalid-email') return 'Проверьте адрес электронной почты.';
+  if (code === 'auth/too-many-requests') return 'Слишком много попыток. Попробуйте позже.';
+  if (code === 'unavailable' || code === 'auth/network-request-failed') return 'Нет связи с Firebase.';
   return 'Операция не выполнена. Попробуйте снова.';
 }
 
@@ -137,27 +141,63 @@ export class InventoryData {
   readonly cardsLoaded = signal(false);
   readonly reportsError = signal('');
   readonly reportsLoading = signal(false);
-  readonly local = ['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol === 'http:';
+  private readonly firebase = inject(firebaseOptions);
+  readonly configured = this.firebase !== null;
   private cardsRequest = 0;
   private reportsRequest = 0;
 
   constructor() {
-    if (!this.local) return;
-    const app = initializeApp({ projectId: 'demo-pcinventory', apiKey: 'demo-pcinventory-local-only' });
+    if (!this.firebase) return;
+    const app = initializeApp(this.firebase);
     this.auth = initializeAuth(app, { persistence: inMemoryPersistence });
-    connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
     this.db = getFirestore(app);
-    connectFirestoreEmulator(this.db, '127.0.0.1', 8080);
+    if (localFirebase) {
+      connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      connectFirestoreEmulator(this.db, '127.0.0.1', 8080);
+    }
+  }
+
+  async register(email: string, password: string): Promise<void> {
+    if (!this.auth) throw new InventoryError('Подключение к Firebase не настроено.');
+    if (!meetsPasswordPolicy(password)) throw new InventoryError(passwordHint);
+    const { user } = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    try {
+      await sendEmailVerification(user);
+    } catch {
+      throw new InventoryError('Учётная запись создана. Войдите с этим паролем, чтобы повторно отправить письмо.');
+    } finally {
+      await signOut(this.auth);
+    }
   }
 
   async login(email: string, password: string): Promise<void> {
-    if (!this.auth || !this.db) throw new InventoryError('Откройте интерфейс на localhost для работы с эмулятором.');
+    if (!this.auth || !this.db) throw new InventoryError('Подключение к Firebase не настроено.');
     const { user } = await signInWithEmailAndPassword(this.auth, email.trim(), password);
     try {
-      const access = (await getDoc(doc(this.db, 'users', user.uid))).data();
-      const role = access?.['role'];
+      const profileRef = doc(this.db, 'users', user.uid);
+      const access = (await getDoc(profileRef)).data();
+      if (!access) {
+        if (!user.emailVerified) {
+          await sendEmailVerification(user);
+          throw new InventoryError('Подтвердите почту по ссылке из письма и войдите снова.');
+        }
+        await runTransaction(this.db, async transaction => {
+          if (!(await transaction.get(profileRef)).exists()) {
+            transaction.set(profileRef, { email: user.email, role: 'USER', enabled: false, pending: true });
+          }
+        });
+        throw new InventoryError('Запрос на доступ отправлен. После одобрения администратором войдите снова.');
+      }
+      if (access['pending'] === true) throw new InventoryError('Запрос ожидает одобрения администратором.');
+      const role = access['role'];
       if (access?.['enabled'] !== true || (role !== 'ADMIN' && role !== 'USER')) {
         throw new InventoryError('У этой учётной записи нет доступа к веб-интерфейсу.');
+      }
+      if (user.emailVerified && user.email && access['email'] !== user.email) {
+        await runTransaction(this.db, async transaction => {
+          const latest = (await transaction.get(profileRef)).data();
+          if (latest && latest['email'] !== user.email) transaction.update(profileRef, { email: user.email });
+        });
       }
       this.session.set({ uid: user.uid, email: user.email ?? email.trim(), role });
       if (role === 'ADMIN') void this.refreshReports();
@@ -223,7 +263,7 @@ export class InventoryData {
     return { db: this.db, session };
   }
 
-  private adminConnection(): { db: Firestore; session: Session } {
+  adminConnection(): { db: Firestore; session: Session } {
     const connection = this.connection();
     if (connection.session.role !== 'ADMIN') throw new InventoryError('Нужны права администратора.');
     return connection;

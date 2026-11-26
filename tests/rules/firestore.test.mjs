@@ -83,6 +83,64 @@ async function seed(documents) {
   });
 }
 
+test('verified sign-up requests no access until an administrator approves', async () => {
+  const uid = 'new-request';
+  const email = 'new@example.test';
+  const profile = { role: 'USER', enabled: false, pending: true, email };
+  const applicant = env.authenticatedContext(uid, { email, email_verified: true }).firestore();
+  const unverified = env.authenticatedContext(uid, { email, email_verified: false }).firestore();
+  const user = db => doc(db, 'users', uid);
+  await assertFails(setDoc(user(unverified), profile));
+  await assertFails(setDoc(user(applicant), { ...profile, email: 'forged@example.test' }));
+  await assertFails(setDoc(user(applicant), { ...profile, role: 'ADMIN' }));
+  await assertFails(setDoc(user(applicant), { ...profile, enabled: true }));
+  await assertSucceeds(setDoc(user(applicant), profile));
+  await assertFails(getDocsFromServer(collection(applicant, 'computers')));
+  await assertFails(updateDoc(user(applicant), { enabled: true }));
+  await assertFails(getDocsFromServer(collection(admin, 'users')));
+  await assertSucceeds(getDocsFromServer(query(collection(admin, 'users'), where('role', 'in', ['ADMIN', 'USER']))));
+  await assertFails(getDocFromServer(doc(admin, 'users', collectorId)));
+  await assertFails(updateDoc(doc(admin, 'users', collectorId), { role: 'USER' }));
+  const batch = writeBatch(admin);
+  batch.set(doc(admin, 'settings/access'), { adminUid: adminId });
+  batch.update(user(admin), { pending: false, enabled: true, displayName: 'New user' });
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(getDocsFromServer(collection(applicant, 'computers')));
+  await assertFails(updateDoc(user(admin), { email: 'forged@example.test' }));
+  await assertFails(deleteDoc(user(admin)));
+  await assertSucceeds(updateDoc(user(admin), { enabled: false }));
+  await assertFails(getDocsFromServer(collection(applicant, 'computers')));
+});
+
+test('concurrent demotion and deactivation leave an active administrator', async () => {
+  const otherId = 'other-admin';
+  await seed({ ['users/' + otherId]: { role: 'ADMIN', enabled: true },
+    ['settings/access']: { adminUid: adminId } });
+  const other = env.authenticatedContext(otherId).firestore();
+  await assertFails(updateDoc(doc(admin, 'users', adminId), { role: 'USER' }));
+  await assertFails(setDoc(doc(admin, 'settings/access'), { adminUid: userId }));
+  await assertFails(deleteDoc(doc(admin, 'settings/access')));
+  const demote = () => {
+    const batch = writeBatch(admin);
+    batch.set(doc(admin, 'settings/access'), { adminUid: otherId });
+    batch.update(doc(admin, 'users', adminId), { role: 'USER' });
+    return batch.commit();
+  };
+  const outcomes = await Promise.allSettled([
+    demote(), updateDoc(doc(other, 'users', otherId), { enabled: false }),
+  ]);
+  const committed = outcomes.filter(result => result.status === 'fulfilled').length;
+  assert.ok(committed <= 1);
+  // The emulator can reject both cross-document writes during lock contention.
+  if (committed === 0) await assertSucceeds(demote());
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    const anchor = (await getDocFromServer(doc(db, 'settings/access'))).get('adminUid');
+    const profile = await getDocFromServer(doc(db, 'users', anchor));
+    assert.deepEqual(profile.data(), { role: 'ADMIN', enabled: true });
+  });
+});
+
 test('collector can read only the confirmed location directory', async () => {
   const location = { building: 'Корпус Б', floor: '2', room: '010' };
   const path = 'locations/' + await locationId(location);

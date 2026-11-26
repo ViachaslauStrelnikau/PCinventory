@@ -275,8 +275,56 @@ service cloud.firestore {
         && (!changed.hasAny(hardwareKeys()) || validHardwareValues(card));
     }
 
+    function accessPath() {
+      return /databases/$(database)/documents/settings/access;
+    }
+
+    function activeAdminAfter() {
+      let uid = getAfter(accessPath()).data.adminUid;
+      return enabledRole(getAfter(userPath(uid)).data, 'ADMIN');
+    }
+
+    function isWebProfile(data) {
+      return data.role in ['ADMIN', 'USER'];
+    }
+
+    function verifiedOwnEmail(uid, data) {
+      return request.auth.uid == uid && request.auth.token.get('email_verified', false) == true
+        && data.email == request.auth.token.get('email', null) && nonBlank(data.email, 254);
+    }
+
+    function validAccessRequest(uid, data) {
+      return data.keys().toSet() == ['email', 'role', 'enabled', 'pending'].toSet()
+        && verifiedOwnEmail(uid, data) && data.role == 'USER' && data.enabled == false && data.pending == true;
+    }
+
+    function validProfileEdit(before, after) {
+      return isWebProfile(before) && isWebProfile(after)
+        && after.diff(before).affectedKeys().hasOnly(['role', 'enabled', 'displayName', 'pending'])
+        && after.enabled is bool && after.get('pending', false) == false
+        && blankOrText(after.get('displayName', ''), 120)
+        && (!before.get('pending', false) || after.enabled == true)
+        && activeAdminAfter();
+    }
+
     match /users/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
+      allow get: if request.auth != null
+        && (request.auth.uid == uid || (hasEnabledRole('ADMIN') && isWebProfile(resource.data)));
+      allow list: if hasEnabledRole('ADMIN') && isWebProfile(resource.data);
+      allow create: if request.auth != null && validAccessRequest(uid, request.resource.data);
+      allow update: if request.auth != null && (
+        (isWebProfile(resource.data) && verifiedOwnEmail(uid, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email']))
+        || (hasEnabledRole('ADMIN') && validProfileEdit(resource.data, request.resource.data))
+      );
+    }
+
+    match /settings/access {
+      allow get: if hasEnabledRole('ADMIN');
+      allow create, update: if hasEnabledRole('ADMIN')
+        && request.resource.data.keys().toSet() == ['adminUid'].toSet()
+        && request.resource.data.adminUid.matches('^[^/]{1,128}$')
+        && activeAdminAfter();
     }
 
     match /locations/{id} {
