@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { type InventoryLocation } from '../../../../shared/location-directory.mjs';
 import { InventoryData } from '../core/inventory-data';
 import type { DirectoryCommand } from '../core/directory-store';
@@ -23,7 +24,7 @@ const errors: Record<string, string> = {
   'admin-required': 'Для редактирования справочника нужны права администратора.',
 };
 
-@Component({ imports: [FormsModule], templateUrl: './directories.html' })
+@Component({ imports: [FormsModule, RouterLink], templateUrl: './directories.html' })
 export class Directories {
   readonly data = inject(InventoryData);
   private readonly registry = inject(RegistryState);
@@ -53,6 +54,10 @@ export class Directories {
   draft = '';
 
   constructor() { void this.data.refreshCards(); }
+
+  setTreeOpen(tree: HTMLElement, open: boolean): void {
+    for (const branch of tree.querySelectorAll<HTMLDetailsElement>('details')) branch.open = open;
+  }
 
   matches(building: string, floor = '', room = ''): boolean {
     const selected = this.selected();

@@ -92,24 +92,28 @@ function placeMatches(card: ComputerDocument, place: Place): boolean {
 }
 
 export function locationTree(cards: readonly ComputerDocument[], locations: readonly InventoryLocation[]) {
-  const buildings = new Map<string, Map<string, Map<string, number>>>();
-  function add({ building, floor, room }: InventoryLocation, count: number): void {
+  const buildings = new Map<string, Map<string, Map<string, ComputerDocument[]>>>();
+  function add({ building, floor, room }: InventoryLocation, card?: ComputerDocument): void {
     if (!buildings.has(building)) buildings.set(building, new Map());
     const floors = buildings.get(building)!;
     if (!floor) return;
     if (!floors.has(floor)) floors.set(floor, new Map());
     const rooms = floors.get(floor)!;
-    if (room) rooms.set(room, (rooms.get(room) ?? 0) + count);
+    if (!room) return;
+    if (!rooms.has(room)) rooms.set(room, []);
+    if (card) rooms.get(room)!.push(card);
   }
-  for (const location of locations) add(location, 0);
-  for (const card of cards) add(card, 1);
+  for (const location of locations) add(location);
+  for (const card of cards) add(card, card);
   const sorted = <T>(values: Map<string, T>) => [...values].sort(([a], [b]) => collator.compare(a, b));
   return sorted(buildings).map(([name, floors]) => ({
     name,
     count: cards.filter(card => card.building === name).length,
     floors: sorted(floors).map(([floor, rooms]) => ({
-      name: floor, count: [...rooms.values()].reduce((a, b) => a + b, 0),
-      rooms: sorted(rooms).map(([name, count]) => ({ name, count })),
+      name: floor, count: [...rooms.values()].reduce((total, cards) => total + cards.length, 0),
+      rooms: sorted(rooms).map(([name, cards]) => ({
+        name, count: cards.length, cards: cards.sort((a, b) => collator.compare(a.hostname, b.hostname)),
+      })),
     })),
   }));
 }

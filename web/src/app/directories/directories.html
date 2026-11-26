@@ -11,32 +11,56 @@
 <div class="registry-grid directory-grid">
   <section class="panel location-tree" aria-label="Дерево расположений">
     <h2>Расположение</h2>
+    <div class="actions directory-tree-actions">
+      <button type="button" aria-controls="directory-tree" [disabled]="!tree().length"
+        (click)="setTreeOpen(treeNodes, true)">Раскрыть всё дерево</button>
+      <button type="button" aria-controls="directory-tree" [disabled]="!tree().length"
+        (click)="setTreeOpen(treeNodes, false)">Закрыть всё дерево</button>
+    </div>
     @if (data.cardsLoading() && !tree().length) { <p role="status">Загрузка…</p> }
-    @for (building of tree(); track building.name) {
-      <details #buildingNode open>
-        <summary>
-          <button type="button" class="tree-button" [class.selected]="matches(building.name)"
-            [attr.aria-pressed]="matches(building.name)" [disabled]="busy()"
-            (click)="select(building.name); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
-        </summary>
-        @for (floor of building.floors; track floor.name) {
-          <details #floorNode class="tree-indent" open>
-            <summary>
-              <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name)"
-                [attr.aria-pressed]="matches(building.name, floor.name)" [disabled]="busy()"
-                (click)="select(building.name, floor.name); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
-            </summary>
-            @for (room of floor.rooms; track room.name) {
-              <button type="button" class="tree-button tree-indent" [class.selected]="matches(building.name, floor.name, room.name)"
-                [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
-                (click)="select(building.name, floor.name, room.name)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
-            }
-          </details>
-        }
-      </details>
-    } @empty {
-      @if (!data.cardsLoading() && !data.locationsError() && !data.cardsError()) { <p class="muted">Зданий пока нет.</p> }
-    }
+    <div id="directory-tree" #treeNodes>
+      @for (building of tree(); track building.name) {
+        <details #buildingNode open>
+          <summary>
+            <button type="button" class="tree-button" [class.selected]="matches(building.name)"
+              [attr.aria-pressed]="matches(building.name)" [disabled]="busy()"
+              (click)="select(building.name); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+          </summary>
+          @for (floor of building.floors; track floor.name) {
+            <details #floorNode class="tree-indent" open>
+              <summary>
+                <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name)"
+                  [attr.aria-pressed]="matches(building.name, floor.name)" [disabled]="busy()"
+                  (click)="select(building.name, floor.name); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+              </summary>
+              @for (room of floor.rooms; track room.name) {
+                @if (room.cards.length) {
+                  <details #roomNode class="tree-indent">
+                    <summary>
+                      <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name, room.name)"
+                        [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
+                        (click)="select(building.name, floor.name, room.name); roomNode.open = true">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                    </summary>
+                    @for (card of room.cards; track card.deviceId) {
+                      <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
+                        {{ card.hostname }}
+                        @if (card.status === 'RETIRED') { <span>В архиве</span> }
+                      </a>
+                    }
+                  </details>
+                } @else {
+                  <button type="button" class="tree-button tree-indent" [class.selected]="matches(building.name, floor.name, room.name)"
+                    [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
+                    (click)="select(building.name, floor.name, room.name)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                }
+              }
+            </details>
+          }
+        </details>
+      } @empty {
+        @if (!data.cardsLoading() && !data.locationsError() && !data.cardsError()) { <p class="muted">Зданий пока нет.</p> }
+      }
+    </div>
   </section>
 
   @if (editor(); as edit) {
