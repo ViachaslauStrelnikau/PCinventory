@@ -57,17 +57,21 @@
     </div>
     @if (data.locationsError()) { <p class="muted" role="status">{{ data.locationsError() }}</p> }
     <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
-      Все здания <span>{{ state.filteredWithoutPlace().length }}</span>
+      <span class="tree-label"><span class="tree-icon tree-icon-building" aria-hidden="true"></span>Все здания</span>
+      <span>{{ state.filteredWithoutPlace().length }}</span>
     </button>
     <ng-template #locationLabel let-label let-level="level">
       <span class="tree-label">
-        @for (part of state.locationLabelParts(label, level); track $index) {
-          @if (part.match) {
-            <mark>{{ part.text }}</mark>
-          } @else {
-            <ng-container>{{ part.text }}</ng-container>
+        <span [class]="'tree-icon tree-icon-' + level" aria-hidden="true"></span>
+        <span class="tree-label-text">
+          @for (part of state.locationLabelParts(label, level); track $index) {
+            @if (part.match) {
+              <mark>{{ part.text }}</mark>
+            } @else {
+              <ng-container>{{ part.text }}</ng-container>
+            }
           }
-        }
+        </span>
       </span>
     </ng-template>
     <div id="registry-location-tree" #treeNodes>
@@ -103,7 +107,7 @@
                     </summary>
                     @for (card of room.cards; track card.deviceId) {
                       <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
-                        {{ card.hostname }}
+                        <span class="tree-label"><span class="tree-icon monitor" aria-hidden="true"></span>{{ card.hostname }}</span>
                         @if (card.status === 'RETIRED') { <span>В архиве</span> }
                       </a>
                     }

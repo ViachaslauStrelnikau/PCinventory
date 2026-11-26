@@ -24,14 +24,20 @@
           <summary>
             <button type="button" class="tree-button" [class.selected]="matches(building.name)"
               [attr.aria-pressed]="matches(building.name)" [disabled]="busy()"
-              (click)="select(building.name); buildingNode.open = true">{{ building.name }} <span>{{ building.count }}</span></button>
+              (click)="select(building.name); buildingNode.open = true">
+              <span class="tree-label"><span class="tree-icon tree-icon-building" aria-hidden="true"></span>{{ building.name }}</span>
+              <span>{{ building.count }}</span>
+            </button>
           </summary>
           @for (floor of building.floors; track floor.name) {
             <details #floorNode class="tree-indent" open>
               <summary>
                 <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name)"
                   [attr.aria-pressed]="matches(building.name, floor.name)" [disabled]="busy()"
-                  (click)="select(building.name, floor.name); floorNode.open = true">Этаж {{ floor.name }} <span>{{ floor.count }}</span></button>
+                  (click)="select(building.name, floor.name); floorNode.open = true">
+                  <span class="tree-label"><span class="tree-icon tree-icon-floor" aria-hidden="true"></span>Этаж {{ floor.name }}</span>
+                  <span>{{ floor.count }}</span>
+                </button>
               </summary>
               @for (room of floor.rooms; track room.name) {
                 @if (room.cards.length) {
@@ -39,11 +45,14 @@
                     <summary>
                       <button type="button" class="tree-button" [class.selected]="matches(building.name, floor.name, room.name)"
                         [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
-                        (click)="select(building.name, floor.name, room.name); roomNode.open = true">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                        (click)="select(building.name, floor.name, room.name); roomNode.open = true">
+                        <span class="tree-label"><span class="tree-icon tree-icon-room" aria-hidden="true"></span>Каб. {{ room.name }}</span>
+                        <span>{{ room.count }}</span>
+                      </button>
                     </summary>
                     @for (card of room.cards; track card.deviceId) {
                       <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
-                        {{ card.hostname }}
+                        <span class="tree-label"><span class="tree-icon monitor" aria-hidden="true"></span>{{ card.hostname }}</span>
                         @if (card.status === 'RETIRED') { <span>В архиве</span> }
                       </a>
                     }
@@ -51,7 +60,10 @@
                 } @else {
                   <button type="button" class="tree-button tree-indent" [class.selected]="matches(building.name, floor.name, room.name)"
                     [attr.aria-pressed]="matches(building.name, floor.name, room.name)" [disabled]="busy()"
-                    (click)="select(building.name, floor.name, room.name)">Каб. {{ room.name }} <span>{{ room.count }}</span></button>
+                    (click)="select(building.name, floor.name, room.name)">
+                    <span class="tree-label"><span class="tree-icon tree-icon-room" aria-hidden="true"></span>Каб. {{ room.name }}</span>
+                    <span>{{ room.count }}</span>
+                  </button>
                 }
               }
             </details>
