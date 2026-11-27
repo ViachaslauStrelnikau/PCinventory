@@ -19,7 +19,7 @@
       </div>
       <input type="search" aria-label="Поиск отчётов" placeholder="Имя ПК, кабинет или идентификатор" [ngModel]="text()" (ngModelChange)="text.set($event)">
     </div>
-    @if (data.reportsLoading()) { <p class="empty" role="status">Загрузка отчётов…</p> }
+    @if (data.reportsLoading()) { <p class="empty is-spinning" role="status">Загрузка отчётов…</p> }
     @else {
       @for (item of reports(); track item.reportId) {
         <button type="button" class="inbox-item" [class.selected]="selectedId() === item.reportId" [attr.aria-pressed]="selectedId() === item.reportId"
@@ -33,6 +33,9 @@
     }
   </section>
   <div class="report-detail">
+    @if (reviewing(); as outcome) {
+      <p class="notice info is-spinning" role="status">{{ outcome === 'REJECTED' ? 'Отклонение отчёта…' : 'Принятие отчёта…' }}</p>
+    }
     @if (report(); as item) {
       @if (proposed(); as next) {
         <section class="panel section">
@@ -55,6 +58,7 @@
           @if (item.status !== 'PENDING') {
             <p class="muted">Проверено {{ dateText(item.reviewedAt) }} · {{ item.reviewedBy }}</p>
           }
+          @if (loadingCard() && !busy()) { <p class="is-spinning" role="status">Загрузка текущей карточки…</p> }
         </section>
         @if (draft(); as editable) {
           <app-record-editor [entry]="editable" [busy]="busy()" [report]="true" saveLabel="Сохранить исправления"
@@ -62,7 +66,6 @@
         } @else if (item.status === 'PENDING') {
           <section class="panel section">
             <h2>Проверка отчёта</h2>
-            @if (loadingCard()) { <p role="status">Загрузка текущей карточки…</p> }
             @if (cardError()) { <p class="notice error" role="alert">{{ cardError() }}</p> }
             @if (!card() && !loadingCard() && !cardError()) { <p class="notice info">Принятие отчёта создаст новую карточку.</p> }
             @if (card()?.status === 'RETIRED') { <p class="notice warning">Карточка в архиве. Принятие отчёта сохранит её архивный статус.</p> }

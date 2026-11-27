@@ -11,6 +11,7 @@ import { RegistryState } from './registry/registry-state';
 export class App {
   readonly data = inject(InventoryData);
   private readonly router = inject(Router);
+  readonly navigation = this.router.currentNavigation;
   private readonly registry = inject(RegistryState);
 
   async logout(): Promise<void> {

@@ -121,6 +121,7 @@ export class InventoryData {
   private readonly db: Firestore | null = null;
   private readonly auth: Auth | null = null;
   readonly session = signal<Session | null>(null);
+  readonly signingOut = signal(false);
   readonly admin = computed(() => this.session()?.role === 'ADMIN');
   readonly cards = signal<ComputerDocument[]>([]);
   readonly locations = signal<InventoryLocation[]>([]);
@@ -234,6 +235,7 @@ export class InventoryData {
   }
 
   async logout(): Promise<void> {
+    this.signingOut.set(true);
     this.session.set(null);
     this.cardsRequest++;
     this.reportsRequest++;
@@ -247,7 +249,11 @@ export class InventoryData {
     this.reportsError.set('');
     this.cardsLoading.set(false);
     this.reportsLoading.set(false);
-    if (this.auth) await signOut(this.auth);
+    try {
+      if (this.auth) await signOut(this.auth);
+    } finally {
+      this.signingOut.set(false);
+    }
   }
 
   private connection(): { db: Firestore; session: Session } {

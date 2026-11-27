@@ -17,7 +17,7 @@
       <button type="button" aria-controls="directory-tree" [disabled]="!tree().length"
         (click)="setTreeOpen(treeNodes, false)">Свернуть все</button>
     </div>
-    @if (data.cardsLoading() && !tree().length) { <p role="status">Загрузка…</p> }
+    @if (data.cardsLoading() && !busy()) { <p class="muted is-spinning" role="status">Загрузка справочника…</p> }
     <div id="directory-tree" #treeNodes>
       @for (building of tree(); track building.name) {
         <details #buildingNode open>
@@ -91,7 +91,8 @@
           <p class="muted editor-actions">Новое название появится во всех связанных карточках ПК.</p>
         }
         <div class="actions editor-actions">
-          <button type="submit" class="primary" [disabled]="!draft.trim() || busy()">{{ busy() ? 'Сохранение…' : 'Сохранить' }}</button>
+          <button type="submit" class="primary" [class.is-spinning]="busy()"
+            [disabled]="!draft.trim() || busy()">{{ busy() ? 'Сохранение…' : 'Сохранить' }}</button>
           <button type="button" (click)="editor.set(null)">Отмена</button>
         </div>
       </fieldset>
@@ -106,8 +107,8 @@
         <p>Удалить выбранную запись из справочника?</p>
         <div class="actions editor-actions">
           <button type="button" (click)="confirmingDelete.set(false)" [disabled]="busy()">Отмена</button>
-          <button type="button" class="danger" (click)="remove(path)"
-            [disabled]="busy() || data.cardsLoading() || !!deleteBlock()">Подтвердить удаление</button>
+          <button type="button" class="danger" (click)="remove(path)" [class.is-spinning]="busy()"
+            [disabled]="busy() || data.cardsLoading() || !!deleteBlock()">{{ busy() ? 'Удаление…' : 'Подтвердить удаление' }}</button>
         </div>
       } @else {
         <div class="actions">

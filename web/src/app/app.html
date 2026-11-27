@@ -24,4 +24,7 @@
     </aside>
   }
   <main [class.workspace]="data.session()" [class.login-workspace]="!data.session()"><router-outlet /></main>
+  @if (data.signingOut() || navigation()) {
+    <p class="panel navigation-progress is-spinning" role="status">{{ data.signingOut() ? 'Выход из реестра…' : 'Загрузка страницы…' }}</p>
+  }
 </div>

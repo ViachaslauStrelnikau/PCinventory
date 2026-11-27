@@ -33,6 +33,41 @@ button, .button {
 }
 button:hover, .button:hover { background: #eef3fa; }
 button:disabled { opacity: .52; cursor: default; }
+.is-spinning::before {
+  content: "";
+  display: inline-block;
+  width: .9em;
+  height: .9em;
+  margin-inline-end: .5em;
+  border: .14em solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  vertical-align: -.12em;
+  flex: none;
+  animation: progress-spin .8s linear infinite;
+}
+button.is-spinning::before { margin-inline-end: 0; }
+button.is-spinning:disabled { opacity: .8; }
+@keyframes progress-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .is-spinning::before { animation: none; }
+}
+.app-startup {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.navigation-progress {
+  position: fixed;
+  z-index: 5;
+  inset-block-start: .75rem;
+  inset-inline: 0;
+  width: max-content;
+  margin-inline: auto;
+  padding: .5rem .85rem;
+  pointer-events: none;
+}
 .primary, .primary:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
 .primary:not(:disabled):hover { background: #1648a8; }
 .danger, .danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }

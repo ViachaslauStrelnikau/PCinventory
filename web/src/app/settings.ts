@@ -16,14 +16,15 @@ import { FirestoreBackup } from './firestore-backup';
           <h2 id="intake-title">Приём отчётов</h2>
           <p class="muted">Разрешить настольным агентам отправлять новые отчёты.</p>
         </div>
+        @if (busy()) {
+          <span class="is-spinning" role="status">{{ enabled() === null ? 'Загрузка настроек…' : 'Сохранение настройки…' }}</span>
+        }
         @if (enabled() !== null) {
           <label class="switch-label">
             <input class="switch" type="checkbox" role="switch" aria-label="Приём отчётов" [checked]="enabled()" [disabled]="busy()" (change)="change($event.target)">
             {{ enabled() ? 'Включён' : 'Выключен' }}
           </label>
-        } @else if (busy()) {
-          <span role="status">Загрузка…</span>
-        } @else {
+        } @else if (!busy()) {
           <button type="button" (click)="load()">Повторить загрузку</button>
         }
       </section>

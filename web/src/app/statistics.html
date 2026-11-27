@@ -1,6 +1,6 @@
 <header class="page-heading">
   <div><h1>Статистика</h1><p>Сводка по компьютерам реестра</p></div>
-  <button type="button" class="primary" (click)="download()" [disabled]="!cards().length || exporting()">
+  <button type="button" class="primary" (click)="download()" [class.is-spinning]="exporting()" [disabled]="!cards().length || exporting()">
     {{ exporting() ? 'Подготовка…' : 'Экспорт в Excel' }}
   </button>
 </header>
@@ -12,7 +12,7 @@
   @if (useSelection()) { <a class="subtle-link" routerLink="/computers">Изменить выборку</a> }
 </section>
 @if (error() || data.cardsError()) { <p class="notice error" role="alert">{{ error() || data.cardsError() }}</p> }
-@if (data.cardsLoading()) { <p class="panel empty" role="status">Загрузка статистики…</p> }
+@if (data.cardsLoading()) { <p class="panel empty is-spinning" role="status">Загрузка статистики…</p> }
 @else if (!data.cardsError()) {
   <div class="stats-totals">
     @for (total of totals(); track total.label) {

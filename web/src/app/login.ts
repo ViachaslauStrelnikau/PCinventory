@@ -25,9 +25,9 @@ import { meetsPasswordPolicy, passwordHint, passwordMaxLength } from './core/pas
           @if (confirmation && password !== confirmation) { <p class="danger-text">Пароли не совпадают.</p> }
         }
         @if (error()) { <p role="alert" class="alert error">{{ error() }}</p> }
-        <button type="submit" class="button primary"
+        <button type="submit" class="button primary" [class.is-spinning]="busy()"
           [disabled]="busy() || !data.configured || (registering() && !passwordPairValid)">
-          {{ busy() ? 'Подождите…' : registering() ? 'Зарегистрироваться' : 'Войти' }}
+          {{ busy() ? (registering() ? 'Регистрация…' : 'Вход…') : registering() ? 'Зарегистрироваться' : 'Войти' }}
         </button>
         <button type="button" class="button" [disabled]="busy() || !data.configured" (click)="toggleRegistration()">
           {{ registering() ? 'Вернуться ко входу' : 'Запросить доступ' }}
@@ -38,6 +38,9 @@ import { meetsPasswordPolicy, passwordHint, passwordMaxLength } from './core/pas
           @if (agentRelease(); as release) {
             <a [href]="release.url">Скачать агент для Windows <span class="muted">({{ release.version }})</span></a>
           } @else {
+            @if (loadingAgentRelease()) {
+              <span class="muted is-spinning" role="status" aria-label="Проверка версии агента"></span>
+            }
             <a [href]="agentReleasesUrl">Сборки агента для Windows</a>
           }
         </div>
@@ -55,10 +58,12 @@ export class Login {
   readonly passwordMaxLength = passwordMaxLength;
   readonly agentReleasesUrl = agentReleasesUrl;
   readonly agentRelease = signal<Awaited<ReturnType<typeof loadAgentRelease>>>(null);
+  readonly loadingAgentRelease = signal(true);
   confirmation = '';
 
   constructor() {
-    void loadAgentRelease().then(release => this.agentRelease.set(release));
+    void loadAgentRelease().then(release => this.agentRelease.set(release))
+      .finally(() => this.loadingAgentRelease.set(false));
   }
 
   get passwordPairValid(): boolean {

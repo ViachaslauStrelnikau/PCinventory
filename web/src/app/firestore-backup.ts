@@ -12,6 +12,8 @@ const collections: { key: BackupCollection; label: string }[] = [
   { key: 'locationRenames', label: 'Прежние названия' },
 ];
 
+type BackupOperation = 'download' | 'file' | 'preview' | 'restore';
+
 @Component({
   selector: 'app-firestore-backup',
   templateUrl: './firestore-backup.html',
@@ -24,7 +26,8 @@ export class FirestoreBackup {
   private readonly google = signal<GoogleOAuth | null>(null);
   private readonly clientId = this.config?.restoreOAuthClientId;
 
-  readonly busy = signal(false);
+  readonly operation = signal<BackupOperation | null>(null);
+  readonly busy = computed(() => this.operation() !== null);
   readonly loadingGoogle = signal(false);
   readonly error = signal('');
   readonly message = signal('');
@@ -56,7 +59,7 @@ export class FirestoreBackup {
   }
 
   async download(): Promise<void> {
-    await this.perform(async () => {
+    await this.perform('download', async () => {
       const db = createFirestore({ ...this.inventory.adminBackupSource(), signal: this.lifetime.signal });
       const backup = await createBackup(db);
       const content = await encodeBackup(backup);
@@ -79,7 +82,7 @@ export class FirestoreBackup {
     this.clearPlan();
     if (!file) return;
 
-    await this.perform(async () => {
+    await this.perform('file', async () => {
       const backup = await decodeBackup(await file.text());
       this.selected.set({ name: file.name, backup });
       if (this.clientId && !this.google()) void this.prepareGoogle();
@@ -115,7 +118,7 @@ export class FirestoreBackup {
     const clientId = this.clientId;
     if (this.busy() || !file || !google || !clientId || !this.target() || this.targetError()) return;
     this.clearPlan();
-    await this.perform(async () => {
+    await this.perform('preview', async () => {
       this.inventory.adminConnection();
       const authorization = await authorizeRestore(google, clientId);
       this.lifetime.signal.throwIfAborted();
@@ -137,7 +140,7 @@ export class FirestoreBackup {
   async restore(): Promise<void> {
     const file = this.selected();
     if (!file || !this.plan()?.missingCount || this.targetError()) return;
-    await this.perform(async () => {
+    await this.perform('restore', async () => {
       try {
         this.inventory.adminConnection();
         const target = this.target();
@@ -165,9 +168,9 @@ export class FirestoreBackup {
     this.plan.set(null);
   }
 
-  private async perform(action: () => Promise<void>): Promise<void> {
+  private async perform(operation: BackupOperation, action: () => Promise<void>): Promise<void> {
     if (this.busy()) return;
-    this.busy.set(true);
+    this.operation.set(operation);
     this.error.set('');
     this.message.set('');
     try {
@@ -175,7 +178,7 @@ export class FirestoreBackup {
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'Операция с резервной копией завершилась ошибкой.');
     } finally {
-      this.busy.set(false);
+      this.operation.set(null);
     }
   }
 }

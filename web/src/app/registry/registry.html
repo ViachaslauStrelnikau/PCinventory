@@ -3,7 +3,7 @@
   <div class="actions">
     <button type="button" (click)="data.refreshCards()" [disabled]="data.cardsLoading()">Обновить</button>
     @if (data.admin()) { <a class="button" routerLink="/computers/new">Добавить ПК</a> }
-    <button type="button" class="primary" (click)="download()" [disabled]="!state.filtered().length || exporting()">
+    <button type="button" class="primary" (click)="download()" [class.is-spinning]="exporting()" [disabled]="!state.filtered().length || exporting()">
       {{ exporting() ? 'Подготовка…' : 'Экспорт в Excel' }}
     </button>
   </div>
@@ -135,7 +135,7 @@
       </div>
       @if (state.location()) { <span class="muted">{{ state.location() }}</span> }
     </div>
-    @if (data.cardsLoading()) { <p class="empty" role="status">Загрузка карточек…</p> }
+    @if (data.cardsLoading()) { <p class="empty is-spinning" role="status">Загрузка карточек…</p> }
     @else if (!data.cardsError() && !state.rows().length) { <p class="empty">По выбранным условиям карточек нет.</p> }
     @else if (state.rows().length) {
       <div class="table-scroll">

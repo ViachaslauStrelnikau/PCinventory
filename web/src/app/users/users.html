@@ -28,7 +28,8 @@
         <p class="muted editor-actions">Роль последнего активного администратора защищена.</p>
       }
       <div class="actions editor-actions">
-        <button type="submit" class="primary" [disabled]="!form.valid || busy()">{{ busy() ? 'Сохранение…' : user.pending ? 'Одобрить доступ' : 'Сохранить' }}</button>
+        <button type="submit" class="primary" [class.is-spinning]="busy()"
+          [disabled]="!form.valid || busy()">{{ busy() ? 'Сохранение…' : user.pending ? 'Одобрить доступ' : 'Сохранить' }}</button>
         <button type="button" (click)="close()" [disabled]="busy()">Отмена</button>
       </div>
     </fieldset>
@@ -42,14 +43,16 @@
     <div class="actions editor-actions">
       <button type="button" (click)="close()" [disabled]="busy()">Отмена</button>
       <button type="button" [class.danger]="user.enabled" [class.primary]="!user.enabled"
-        (click)="changeStatus(user)" [disabled]="busy() || lastAdmin(user)">{{ user.enabled ? 'Подтвердить деактивацию' : 'Подтвердить восстановление' }}</button>
+        (click)="changeStatus(user)" [class.is-spinning]="busy()" [disabled]="busy() || lastAdmin(user)">
+        {{ busy() ? 'Изменение доступа…' : user.enabled ? 'Подтвердить деактивацию' : 'Подтвердить восстановление' }}
+      </button>
     </div>
   </section>
 }
 
 <section class="panel table-panel" aria-label="Учётные записи">
   @if (loading()) {
-    <p class="empty" role="status">Загрузка пользователей…</p>
+    <p class="empty is-spinning" role="status">Загрузка пользователей…</p>
   } @else if (rows().length) {
     <div class="table-scroll">
       <table>

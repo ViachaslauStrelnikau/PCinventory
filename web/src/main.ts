@@ -7,4 +7,12 @@ import { firebaseOptions, loadFirebaseOptions } from './app/core/firebase-enviro
 loadFirebaseOptions().then(options => bootstrapApplication(App, {
   ...appConfig, providers: [...appConfig.providers, { provide: firebaseOptions, useValue: options }],
 }))
-  .catch((err) => console.error(err));
+  .catch(error => {
+    const status = document.getElementById('app-startup-status');
+    if (status) {
+      status.classList.remove('is-spinning');
+      status.setAttribute('role', 'alert');
+      status.textContent = 'Не удалось загрузить приложение. Обновите страницу.';
+    }
+    console.error(error);
+  });

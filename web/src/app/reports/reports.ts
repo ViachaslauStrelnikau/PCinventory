@@ -23,6 +23,7 @@ export class Reports {
   readonly loadingCard = signal(false);
   readonly cardError = signal('');
   readonly busy = signal(false);
+  readonly reviewing = signal<'ACCEPTED' | 'REJECTED' | null>(null);
   readonly error = signal('');
   readonly notice = signal('');
   readonly rejectConfirmation = signal(false);
@@ -87,6 +88,8 @@ export class Reports {
   }
 
   private clearReview(): void {
+    this.comparisonRequest++;
+    this.loadingCard.set(false);
     this.card.set(null);
     this.draft.set(null);
     this.error.set('');
@@ -139,19 +142,21 @@ export class Reports {
       this.tab.set('processed');
       this.rejectConfirmation.set(false);
       this.notice.set(outcome === 'ACCEPTED' ? 'Отчёт принят. Карточка обновлена.' : 'Отчёт отклонён.');
-    });
+    }, outcome);
   }
 
-  private async perform(action: () => Promise<void>): Promise<void> {
+  private async perform(action: () => Promise<void>, outcome: 'ACCEPTED' | 'REJECTED' | null = null): Promise<void> {
     if (this.busy()) return;
     this.error.set('');
     this.notice.set('');
+    this.reviewing.set(outcome);
     this.busy.set(true);
     try {
       await action();
     } catch (error) {
       this.error.set(messageFor(error));
     } finally {
+      this.reviewing.set(null);
       this.busy.set(false);
     }
   }

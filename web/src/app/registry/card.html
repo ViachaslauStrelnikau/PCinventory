@@ -12,7 +12,9 @@
     @if (data.admin() && !draft() && !confirming()) {
       <div class="actions">
         <button type="button" (click)="edit()" [disabled]="busy() || loading()">Редактировать</button>
-        <button type="button" (click)="changeStatus(record)" [disabled]="busy() || loading()">{{ record.status === 'RETIRED' ? 'Восстановить' : 'Архивировать' }}</button>
+        <button type="button" (click)="changeStatus(record)" [class.is-spinning]="busy() && !loading()" [disabled]="busy() || loading()">
+          {{ busy() && !loading() ? (record.status === 'RETIRED' ? 'Восстановление…' : 'Архивация…') : record.status === 'RETIRED' ? 'Восстановить' : 'Архивировать' }}
+        </button>
         @if (record.status === 'RETIRED') { <button type="button" class="danger-text" (click)="confirming.set(true)" [disabled]="busy()">Удалить из архива</button> }
       </div>
     }
@@ -27,7 +29,9 @@
       <p>После удаления восстановить карточку из архива будет невозможно.</p>
       <div class="actions">
         <button type="button" (click)="confirming.set(false)" [disabled]="busy()">Отмена</button>
-        <button type="button" class="danger" (click)="purge(record)" [disabled]="busy()">Удалить окончательно</button>
+        <button type="button" class="danger" (click)="purge(record)" [class.is-spinning]="busy()" [disabled]="busy()">
+          {{ busy() ? 'Удаление…' : 'Удалить окончательно' }}
+        </button>
       </div>
     </section>
   }
@@ -35,7 +39,7 @@
 @if (draft(); as editable) {
   <app-record-editor [entry]="editable" [busy]="busy()" (save)="save($event)" (cancel)="cancel()" />
 } @else if (loading()) {
-  <p role="status" class="panel empty">Загрузка карточки…</p>
+  <p role="status" class="panel empty is-spinning">Загрузка карточки…</p>
 } @else if (entry(); as values) {
   <section class="panel section">
     <div class="inline-heading"><h2>Конфигурация и учётные данные</h2>

@@ -69,7 +69,8 @@
       <option value="RAID"></option>
     </datalist>
     <div class="actions editor-actions">
-      <button type="submit" class="primary" [disabled]="!editor.valid || busy()">{{ busy() ? 'Сохранение…' : saveLabel() }}</button>
+      <button type="submit" class="primary" [class.is-spinning]="busy()"
+        [disabled]="!editor.valid || busy()">{{ busy() ? 'Сохранение…' : saveLabel() }}</button>
       <button type="button" (click)="cancel.emit()">Отмена</button>
     </div>
   </fieldset>

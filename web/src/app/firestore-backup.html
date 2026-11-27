@@ -4,7 +4,9 @@
       <h2 id="backup-title">Резервное копирование</h2>
       <p class="muted">Карточки ПК, отчёты и справочник. Храните файл в папке с ограниченным доступом.</p>
     </div>
-    <button type="button" (click)="download()" [disabled]="busy()">Скачать резервную копию</button>
+    <button type="button" (click)="download()" [class.is-spinning]="operation() === 'download'" [disabled]="busy()">
+      {{ operation() === 'download' ? 'Подготовка копии…' : 'Скачать резервную копию' }}
+    </button>
   </div>
 
   <div class="form-stack" aria-labelledby="restore-title">
@@ -12,6 +14,7 @@
     <label>Файл резервной копии
       <input type="file" accept=".json,application/json" [disabled]="busy()" (change)="selectFile($any($event.target))">
     </label>
+    @if (operation() === 'file') { <p class="muted is-spinning" role="status">Проверка файла…</p> }
     @if (selected(); as file) {
       <p class="muted">{{ file.name }} · проект {{ file.backup.sourceProject }} · снимок {{ file.backup.readTime }}</p>
       @if (totals(); as documents) {
@@ -40,17 +43,17 @@
         @if (targetError()) { <p class="alert error" role="alert">{{ targetError() }}</p> }
         <div class="actions">
           @if (googleReady()) {
-            <button type="button" [disabled]="busy() || !target() || !!targetError()" (click)="preview()">
-              Войти через Google и проверить восстановление
+            <button type="button" [class.is-spinning]="operation() === 'preview'" [disabled]="busy() || !target() || !!targetError()" (click)="preview()">
+              {{ operation() === 'preview' ? 'Проверка восстановления…' : 'Войти через Google и проверить восстановление' }}
             </button>
           } @else {
-            <button type="button" [disabled]="busy() || loadingGoogle()" (click)="prepareGoogle()">
+            <button type="button" [class.is-spinning]="loadingGoogle()" [disabled]="busy() || loadingGoogle()" (click)="prepareGoogle()">
               {{ loadingGoogle() ? 'Загрузка входа Google…' : 'Подключить вход Google' }}
             </button>
           }
           @if (plan()?.missingCount) {
-            <button type="button" class="primary" [disabled]="busy()" (click)="restore()">
-              Восстановить в проект {{ target() }}
+            <button type="button" class="primary" [class.is-spinning]="operation() === 'restore'" [disabled]="busy()" (click)="restore()">
+              {{ operation() === 'restore' ? 'Восстановление…' : 'Восстановить в проект ' + target() }}
             </button>
           }
         </div>
@@ -62,7 +65,6 @@
     }
   </div>
 
-  @if (busy()) { <p class="muted" role="status">Операция выполняется…</p> }
   @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
   @if (message()) { <p class="notice success" role="status">{{ message() }}</p> }
 </section>

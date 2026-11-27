@@ -25,7 +25,7 @@ import { meetsPasswordPolicy, passwordHint, passwordMaxLength, passwordMinLength
         @if (error()) { <p role="alert" class="notice error">{{ error() }}</p> }
         @if (saved()) { <p role="status" class="notice success">Пароль изменён.</p> }
         <div class="actions editor-actions">
-          <button class="primary" type="submit" [disabled]="!form.valid || !ready || busy()">
+          <button class="primary" type="submit" [class.is-spinning]="busy()" [disabled]="!form.valid || !ready || busy()">
             {{ busy() ? 'Сохранение…' : 'Сменить пароль' }}
           </button>
         </div>
