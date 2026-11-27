@@ -375,7 +375,7 @@ test('rejects spoofed metadata, invalid locations and invalid hardware fields', 
     ['numeric room', report => { report.assignment.room = 10; }],
     ['unknown assignment field', report => { report.assignment.status = 'ACTIVE'; }],
     ['unknown hardware field', report => { report.hardware.extra = true; }],
-    ['invalid device type', report => { report.hardware.deviceType = 'TABLET'; }],
+    ['invalid device type', report => { report.hardware.deviceType = 'Custom device'; }],
     ['numeric nullable string', report => { report.hardware.motherboardSerial = 12; }],
     ['missing nullable field', report => { delete report.hardware.motherboardSerial; }],
     ['unsupported schema', report => { report.hardware.schemaVersion = 2; }],
@@ -484,6 +484,9 @@ test('the admin may edit card data while report links and identity stay immutabl
   await assertFails(updateDoc(cardRef, { building: ' ', ...audit() }));
   await assertSucceeds(updateDoc(cardRef, { cpuModel: 'Verified model', ...audit() }));
   await assertSucceeds(updateDoc(cardRef, { cpuModel: 'Verified again', room: '022', ...audit() }));
+  await assertSucceeds(updateDoc(cardRef, { deviceType: 'TABLET', ...audit() }));
+  await assertSucceeds(updateDoc(cardRef, { deviceType: 'SERVER', ...audit() }));
+  await assertFails(updateDoc(cardRef, { deviceType: 'Custom device', ...audit() }));
   await assertFails(updateDoc(cardRef, { cpuCores: 0, ...audit() }));
   await assertFails(updateDoc(cardRef, { cpuModel: deleteField(), ...audit() }));
   await assertFails(updateDoc(cardRef, { identitySource: 'LOCAL', ...audit() }));
@@ -509,6 +512,9 @@ test('enabled users can read the registry and cannot access the intake or write 
   await assertFails(updateDoc(doc(user, reportPath(secondId)), review('REJECTED')));
   await assertFails(setDoc(doc(user, cardPath(manualCard(pending).deviceId)), manualCard(pending)));
   await assertFails(updateDoc(doc(user, cardPath(deviceId)), { status: 'RETIRED' }));
+  await assertFails(updateDoc(doc(user, cardPath(deviceId)), {
+    deviceType: 'TABLET', assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: userId,
+  }));
   await seed({ ['users/' + userId]: { role: 'USER', enabled: false } });
   await assertFails(getDocsFromServer(collection(user, 'computers')));
 });

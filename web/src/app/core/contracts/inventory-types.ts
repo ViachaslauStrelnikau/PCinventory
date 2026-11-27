@@ -63,6 +63,8 @@ export interface NetworkAdapter {
   staticIpv4: string[];
 }
 
+export type DeviceType = 'TABLET' | 'DESKTOP' | 'LAPTOP' | 'SERVER' | 'UNKNOWN';
+
 export interface Hardware {
   schemaVersion: 1;
   agentVersion: string;
@@ -79,7 +81,7 @@ export interface Hardware {
   motherboardSerial: string | null;
   computerManufacturer: string | null;
   computerModel: string | null;
-  deviceType?: 'LAPTOP' | 'DESKTOP' | 'UNKNOWN';
+  deviceType?: DeviceType;
   osName: string | null;
   osVersion: string | null;
   osBuild: string | null;

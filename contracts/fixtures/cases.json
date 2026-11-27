@@ -12,9 +12,21 @@
     "expected": null
   },
   {
-    "name": "rejects an unsupported device type",
+    "name": "accepts a tablet in an inventory report",
     "source": "pending",
     "changes": [{ "path": "/hardware/deviceType", "value": "TABLET" }],
+    "expected": null
+  },
+  {
+    "name": "accepts a server in a computer card",
+    "source": "computer",
+    "changes": [{ "path": "/deviceType", "value": "SERVER" }],
+    "expected": null
+  },
+  {
+    "name": "rejects an unsupported device type",
+    "source": "pending",
+    "changes": [{ "path": "/hardware/deviceType", "value": "Custom device" }],
     "expected": "JSON Schema"
   },
   {

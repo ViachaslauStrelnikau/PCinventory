@@ -3,6 +3,13 @@
     <h2>Учётные данные</h2>
     <div class="form-grid">
       <label>Имя ПК <span>*</span><input name="hostname" [(ngModel)]="draft.hardware.hostname" required maxlength="255"></label>
+      <label>Тип устройства
+        <select name="deviceType" [ngModel]="draft.hardware.deviceType ?? 'UNKNOWN'" (ngModelChange)="draft.hardware.deviceType = $event">
+          @for (option of deviceTypes; track option[0]) {
+            <option [ngValue]="option[0]">{{ option[1] }}</option>
+          }
+        </select>
+      </label>
       @for (field of assignmentFields; track field.key) {
         <label>{{ field.label }} @if (field.required) { <span>*</span> }
           <input [name]="field.key" [(ngModel)]="draft.assignment[field.key]" [required]="field.required" [maxlength]="field.max">
@@ -16,8 +23,8 @@
         @for (field of fields; track field.key) {
           <label>{{ field.label }}
             @if (field.choices; as choices) {
-              <select [ngModelOptions]="standalone" [ngModel]="hardware()[field.key] ?? (field.choiceLabels ? 'UNKNOWN' : null)" (ngModelChange)="update(hardware(), field, $event)">
-                @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice, field) }}</option> }
+              <select [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">
+                @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice) }}</option> }
               </select>
             } @else if (field.kind === 'number') {
               <input type="number" min="0" [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">

@@ -1,9 +1,15 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { InventoryData } from '../core/inventory-data';
-import type { ComputerDocument, ContractTimestamp, Disk, Hardware, WarningCode } from '../core/contracts/inventory-types';
+import type { ComputerDocument, ContractTimestamp, DeviceType, Disk, Hardware, WarningCode } from '../core/contracts/inventory-types';
 import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
 
-export const deviceTypeLabels = { LAPTOP: 'Ноутбук', DESKTOP: 'Настольный ПК', UNKNOWN: 'Не определено' } as const;
+export const deviceTypeLabels: Readonly<Record<DeviceType, string>> = {
+  TABLET: 'Планшет',
+  DESKTOP: 'Настольный ПК',
+  LAPTOP: 'Ноутбук',
+  SERVER: 'Сервер',
+  UNKNOWN: 'Не определено',
+};
 export const deviceTypeText = (hardware: Hardware) => deviceTypeLabels[hardware.deviceType ?? 'UNKNOWN'];
 export const computerModelText = (hardware: Hardware) => [hardware.computerManufacturer, hardware.computerModel].filter(Boolean).join(' · ');
 

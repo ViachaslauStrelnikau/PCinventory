@@ -507,7 +507,7 @@
           "$ref": "#/$defs/nullableText"
         },
         "deviceType": {
-          "enum": ["LAPTOP", "DESKTOP", "UNKNOWN"]
+          "enum": ["TABLET", "DESKTOP", "LAPTOP", "SERVER", "UNKNOWN"]
         },
         "osName": {
           "$ref": "#/$defs/nullableText"

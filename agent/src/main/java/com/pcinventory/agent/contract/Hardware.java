@@ -49,7 +49,7 @@ public class Hardware {
     public List<WarningCode> warnings;
 
     public enum IdentitySource { SMBIOS, LOCAL, MANUAL }
-    public enum DeviceType { LAPTOP, DESKTOP, UNKNOWN }
+    public enum DeviceType { TABLET, DESKTOP, LAPTOP, SERVER, UNKNOWN }
     public enum RamSlotTopology { COMPLETE, PARTIAL, UNKNOWN }
     public enum DiskType { SSD, HDD, UNKNOWN }
     public enum NetworkMode { DHCP, STATIC, MIXED, UNKNOWN }

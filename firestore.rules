@@ -109,7 +109,7 @@ service cloud.firestore {
         && (h.cpuCores == null || h.cpuThreads == null || h.cpuCores <= h.cpuThreads)
         && nullableText(h.motherboardManufacturer) && nullableText(h.motherboardModel)
         && nullableText(h.motherboardSerial) && nullableText(h.computerManufacturer) && nullableText(h.computerModel)
-        && h.get('deviceType', 'UNKNOWN') in ['LAPTOP', 'DESKTOP', 'UNKNOWN']
+        && h.get('deviceType', 'UNKNOWN') in ['TABLET', 'DESKTOP', 'LAPTOP', 'SERVER', 'UNKNOWN']
         && nullableText(h.osName) && nullableText(h.osVersion) && nullableText(h.osBuild)
         && h.osArchitecture in [null, 'x86', 'x64']
         && boundedList(h.gpuModels, 16) && boundedList(h.gpus, 16);
