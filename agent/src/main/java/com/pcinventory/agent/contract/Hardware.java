@@ -1,5 +1,6 @@
 package com.pcinventory.agent.contract;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -20,6 +21,8 @@ public class Hardware {
     public String motherboardSerial;
     public String computerManufacturer;
     public String computerModel;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public DeviceType deviceType;
     public String osName;
     public String osVersion;
     public String osBuild;
@@ -46,6 +49,7 @@ public class Hardware {
     public List<WarningCode> warnings;
 
     public enum IdentitySource { SMBIOS, LOCAL, MANUAL }
+    public enum DeviceType { LAPTOP, DESKTOP, UNKNOWN }
     public enum RamSlotTopology { COMPLETE, PARTIAL, UNKNOWN }
     public enum DiskType { SSD, HDD, UNKNOWN }
     public enum NetworkMode { DHCP, STATIC, MIXED, UNKNOWN }

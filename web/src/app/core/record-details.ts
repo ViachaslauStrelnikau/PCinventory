@@ -1,17 +1,18 @@
 import { Component, computed, input } from '@angular/core';
 import type { Entry } from './inventory-data';
-import { diskText, missing, numberFormat, ramText, warningLabels } from '../registry/registry-state';
+import { deviceTypeText, diskText, missing, numberFormat, ramText, warningLabels } from '../registry/registry-state';
 
 const values = (...items: (string | number | null | undefined)[]) => items.filter(item => item !== null && item !== undefined && item !== '').join(' · ') || missing;
 const bytes = (value: number | null) => value === null ? null : numberFormat.format(value / 1024 ** 3) + ' GiB';
 export function entryRows(entry: Entry): { label: string; value: string }[] {
   const { hardware: h, assignment: a } = entry;
   return [
-    ['Имя ПК', h.hostname], ['Расположение', values(a.building, 'этаж ' + a.floor, 'каб. ' + a.room)],
+    ['Имя ПК', h.hostname], ['Тип устройства', deviceTypeText(h)],
+    ['Производитель', h.computerManufacturer], ['Модель', h.computerModel], ['Расположение', values(a.building, 'этаж ' + a.floor, 'каб. ' + a.room)],
     ['Инвентарный №', a.inventoryNumber], ['ФИО сотрудника', a.employeeName], ['Подразделение', a.department],
     ['Примечание', a.comment], ['Процессор', values(h.cpuModel, h.cpuManufacturer, h.cpuCores === null ? null : h.cpuCores + ' ядер',
       h.cpuThreads === null ? null : h.cpuThreads + ' потоков')],
-    ['Исходная строка CPU', h.cpuModelRaw], ['Компьютер', values(h.computerManufacturer, h.computerModel)],
+    ['Исходная строка CPU', h.cpuModelRaw],
     ['Материнская плата', values(h.motherboardManufacturer, h.motherboardModel, h.motherboardSerial)],
     ['Операционная система', values(h.osName, h.osVersion, h.osBuild, h.osArchitecture)],
     ['Видеокарты', h.gpus.map(gpu => values(gpu.model, gpu.manufacturer, bytes(gpu.vramBytes))).join('\n')],

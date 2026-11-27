@@ -1,5 +1,6 @@
 package com.pcinventory.agent.collector;
 
+import com.pcinventory.agent.contract.Hardware.DeviceType;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 import oshi.SystemInfo;
@@ -34,6 +35,7 @@ public final class WindowsHardwareSource implements HardwareSource {
     private enum DiskDrive { MODEL, SIZE, INTERFACETYPE, MEDIATYPE, PNPDEVICEID, SERIALNUMBER }
     private enum PhysicalDisk { SERIALNUMBER, MEDIATYPE, BUSTYPE, SIZE }
     private enum Product { UUID }
+    private enum SystemProfile { PCSYSTEMTYPE, MANUFACTURER, MODEL }
     private enum WindowsEdition { CAPTION }
     private enum Adapter { INDEX, INTERFACEINDEX, PNPDEVICEID, NETCONNECTIONID }
     private enum NetworkConfig { INDEX, DHCPENABLED }
@@ -41,6 +43,12 @@ public final class WindowsHardwareSource implements HardwareSource {
     @Override
     public HardwareSnapshot read() {
         return new Scan().read();
+    }
+
+    static DeviceType deviceType(long systemType) {
+        if (systemType == 2) return DeviceType.LAPTOP;
+        if (systemType == 1) return DeviceType.DESKTOP;
+        return null;
     }
 
     private static final class Scan {
@@ -106,6 +114,7 @@ public final class WindowsHardwareSource implements HardwareSource {
             try {
                 WmiResult<Product> products = query("Win32_ComputerSystemProduct", Product.class);
                 firmwareUuid = count(products) == 1 ? text(products.getValue(Product.UUID, 0)) : null;
+                readSystemProfile();
                 WmiResult<WindowsEdition> editions = query("Win32_OperatingSystem", WindowsEdition.class);
                 snapshot.osCaption = count(editions) == 1 ? text(editions.getValue(WindowsEdition.CAPTION, 0)) : null;
                 readMemory();
@@ -116,6 +125,20 @@ public final class WindowsHardwareSource implements HardwareSource {
                 if (initialized) {
                     handler.unInitCOM();
                 }
+            }
+        }
+
+        private void readSystemProfile() {
+            WmiResult<SystemProfile> profile = query("Win32_ComputerSystem", SystemProfile.class);
+            if (count(profile) != 1) {
+                return;
+            }
+            snapshot.deviceType = deviceType(positive(profile.getValue(SystemProfile.PCSYSTEMTYPE, 0)));
+            if (snapshot.computerVendor == null) {
+                snapshot.computerVendor = text(profile.getValue(SystemProfile.MANUFACTURER, 0));
+            }
+            if (snapshot.computerModel == null) {
+                snapshot.computerModel = text(profile.getValue(SystemProfile.MODEL, 0));
             }
         }
 

@@ -462,7 +462,9 @@ export class InventoryData {
     const changed = previous === null
       || Object.entries(assignment).some(([key, value]) => previous[key as keyof Assignment] !== value);
     const audit = changed ? packTime(Timestamp.now()) : previous.assignmentUpdatedAt;
-    const card = readComputer({ ...proposed.hardware, ...assignment, deviceId: report.deviceId,
+    const deviceType = proposed.hardware.deviceType ?? previous?.deviceType;
+    const card = readComputer({ ...proposed.hardware, ...(deviceType === undefined ? {} : { deviceType }),
+      ...assignment, deviceId: report.deviceId,
       status: previous?.status ?? 'ACTIVE', lastReportId: report.reportId, lastInventoryAt: report.submittedAt,
       assignmentUpdatedAt: audit, assignmentUpdatedBy: changed ? uid : previous.assignmentUpdatedBy });
     return { ...card, lastInventoryAt: timestamp(card.lastInventoryAt),

@@ -99,12 +99,17 @@ service cloud.firestore {
         'networkMode', 'staticIpv4', 'networks', 'warnings'];
     }
 
+    function validHardwareKeys(h) {
+      return h.keys().toSet().difference(['deviceType'].toSet()) == hardwareKeys().toSet();
+    }
+
     function validSystem(h) {
       return nullableText(h.cpuManufacturer) && nullableText(h.cpuModel) && nullableText(h.cpuModelRaw)
         && nullableInt(h.cpuCores, 1, 65535) && nullableInt(h.cpuThreads, 1, 65535)
         && (h.cpuCores == null || h.cpuThreads == null || h.cpuCores <= h.cpuThreads)
         && nullableText(h.motherboardManufacturer) && nullableText(h.motherboardModel)
         && nullableText(h.motherboardSerial) && nullableText(h.computerManufacturer) && nullableText(h.computerModel)
+        && h.get('deviceType', 'UNKNOWN') in ['LAPTOP', 'DESKTOP', 'UNKNOWN']
         && nullableText(h.osName) && nullableText(h.osVersion) && nullableText(h.osBuild)
         && h.osArchitecture in [null, 'x86', 'x64']
         && boundedList(h.gpuModels, 16) && boundedList(h.gpus, 16);
@@ -147,7 +152,7 @@ service cloud.firestore {
     }
 
     function validAgentHardware(h, deviceId) {
-      return h.keys().toSet() == hardwareKeys().toSet()
+      return validHardwareKeys(h)
         && validDeviceId(deviceId, h.identitySource)
         && h.schemaVersion is int && h.schemaVersion == 1
         && nonBlank(h.agentVersion, 64) && validHardwareValues(h);
@@ -161,7 +166,7 @@ service cloud.firestore {
         && correction.keys().toSet() == ['hardware', 'assignment', 'updatedAt', 'updatedBy'].toSet()
         && correction.updatedAt == request.time && correction.updatedAt >= before.submittedAt
         && correction.updatedBy == request.auth.uid
-        && hardware.keys().toSet() == hardwareKeys().toSet()
+        && validHardwareKeys(hardware)
         && hardware.identitySource == before.hardware.identitySource
         && hardware.schemaVersion is int && hardware.schemaVersion == before.hardware.schemaVersion
         && hardware.agentVersion == before.hardware.agentVersion
@@ -185,15 +190,16 @@ service cloud.firestore {
       return card.assignmentUpdatedAt == request.time && card.assignmentUpdatedBy == request.auth.uid;
     }
 
-    function matchesAcceptedReport(card, report, reportId) {
-      // The flat card must contain all hardware fields from the saved effective report.
+    function matchesAcceptedReport(card, report, reportId, previous) {
       let effective = report.get('correction', report);
       let technicalDiff = card.diff(effective.hardware);
+      let deviceType = effective.hardware.get('deviceType', previous.get('deviceType', null));
       let metadata = ['deviceId', 'status', 'lastReportId', 'lastInventoryAt', 'assignmentUpdatedAt', 'assignmentUpdatedBy'];
       return card.deviceId == report.deviceId && report.reportId == reportId
         && card.lastReportId == reportId && card.lastInventoryAt == report.submittedAt
         && technicalDiff.changedKeys().size() == 0 && technicalDiff.removedKeys().size() == 0
-        && technicalDiff.addedKeys().hasOnly(assignmentKeys().concat(metadata))
+        && technicalDiff.addedKeys().hasOnly(assignmentKeys().concat(metadata).concat(['deviceType']))
+        && (deviceType == null ? !card.keys().hasAny(['deviceType']) : card.deviceType == deviceType)
         && validComputerAssignment(card)
         && card.building == effective.assignment.building && card.floor == effective.assignment.floor
         && card.room == effective.assignment.room;
@@ -230,7 +236,7 @@ service cloud.firestore {
       let accepted = getAfter(reportPath(card.lastReportId)).data;
       return card.deviceId == deviceId && validUuid(card.lastReportId)
         && validReview(pending, accepted) && accepted.status == 'ACCEPTED'
-        && matchesAcceptedReport(card, pending, card.lastReportId)
+        && matchesAcceptedReport(card, pending, card.lastReportId, previous == null ? {} : previous)
         && matchesOptionalAssignments(card, pending.get('correction', pending).assignment, previous == null ? {} : previous)
         && (previous == null ? card.status == 'ACTIVE' && validAssignmentAudit(card)
           : validAcceptanceUpdate(card, previous));
@@ -239,9 +245,10 @@ service cloud.firestore {
     function linkedCardAfterAcceptance(reportId, report) {
       let path = computerPath(report.deviceId);
       let card = getAfter(path).data;
+      let previous = exists(path) ? get(path).data : {};
       // lastReportId must have changed in this commit, even for inconsistent old data.
-      return matchesAcceptedReport(card, report, reportId)
-        && (!exists(path) || get(path).data.lastReportId != reportId);
+      return matchesAcceptedReport(card, report, reportId, previous)
+        && previous.get('lastReportId', null) != reportId;
     }
 
     function unchangedComputer(deviceId) {
@@ -254,11 +261,12 @@ service cloud.firestore {
     }
 
     function validManualCard(card, deviceId) {
+      let required = hardwareKeys().concat(assignmentKeys()).concat(cardMetadataKeys());
       return card.deviceId == deviceId && deviceId.matches('^manual-' + uuidPattern() + '$')
         && card.identitySource == 'MANUAL' && card.agentVersion == 'manual'
         && card.schemaVersion is int && card.schemaVersion == 1
         && card.status == 'ACTIVE' && card.lastReportId == null && card.lastInventoryAt == null
-        && card.keys().toSet() == hardwareKeys().concat(assignmentKeys()).concat(cardMetadataKeys()).toSet()
+        && card.keys().toSet().difference(['deviceType'].toSet()) == required.toSet()
         && validAssignmentAudit(card) && validComputerAssignment(card) && validHardwareValues(card);
     }
 
@@ -267,12 +275,12 @@ service cloud.firestore {
       let changed = diff.affectedKeys();
       return !changed.hasAny(['deviceId', 'identitySource', 'schemaVersion', 'agentVersion', 'lastReportId', 'lastInventoryAt'])
         && diff.removedKeys().size() == 0
-        && changed.hasOnly(hardwareKeys().concat(assignmentKeys())
+        && changed.hasOnly(hardwareKeys().concat(assignmentKeys()).concat(['deviceType'])
           .concat(['status', 'assignmentUpdatedAt', 'assignmentUpdatedBy']))
         && (!changed.hasAny(['status']) || card.status in ['ACTIVE', 'RETIRED'])
         && validAssignmentAudit(card)
         && (!changed.hasAny(assignmentKeys()) || validComputerAssignment(card))
-        && (!changed.hasAny(hardwareKeys()) || validHardwareValues(card));
+        && (!changed.hasAny(hardwareKeys().concat(['deviceType'])) || validHardwareValues(card));
     }
 
     function accessPath() {

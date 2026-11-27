@@ -3,6 +3,10 @@ import { InventoryData } from '../core/inventory-data';
 import type { ComputerDocument, ContractTimestamp, Disk, Hardware, WarningCode } from '../core/contracts/inventory-types';
 import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
 
+export const deviceTypeLabels = { LAPTOP: 'Ноутбук', DESKTOP: 'Настольный ПК', UNKNOWN: 'Не определено' } as const;
+export const deviceTypeText = (hardware: Hardware) => deviceTypeLabels[hardware.deviceType ?? 'UNKNOWN'];
+export const computerModelText = (hardware: Hardware) => [hardware.computerManufacturer, hardware.computerModel].filter(Boolean).join(' · ');
+
 export const missing = '—';
 export const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
 export const collator = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' });
@@ -68,6 +72,7 @@ export const columns: readonly Column[] = [
 type Filter = { key: string; label: string; values: (card: ComputerDocument) => string[] };
 function textValues(value: string | null): string[] { return [value || 'Неизвестно']; }
 export const filters: readonly Filter[] = [
+  { key: 'deviceType', label: 'Тип устройства', values: c => [deviceTypeText(c)] },
   { key: 'vendor', label: 'Производитель CPU', values: c => textValues(c.cpuManufacturer) },
   { key: 'cpu', label: 'Модель CPU', values: c => textValues(c.cpuModel) },
   { key: 'gpu', label: 'Видеокарта', values: c => c.gpuModels.length ? c.gpuModels : ['Неизвестно'] },
@@ -161,7 +166,8 @@ export class RegistryState {
     return this.data.cards().filter(card => {
       const scanned = card.lastInventoryAt ? card.lastInventoryAt.seconds * 1000 : null;
       return (status === 'ALL' || status === (card.status ?? 'ACTIVE'))
-        && (!text || [card.hostname, card.cpuModel, ...card.gpuModels, card.employeeName, card.department,
+        && (!text || [card.hostname, [card.computerManufacturer, card.computerModel].filter(Boolean).join(' '),
+          computerModelText(card), card.cpuModel, ...card.gpuModels, card.employeeName, card.department,
           ...card.staticIpv4, card.room, card.inventoryNumber, card.building, card.floor]
           .some(value => value?.toLowerCase().includes(text)))
         && (!terms.length || matchesLocationSearch(card, terms))

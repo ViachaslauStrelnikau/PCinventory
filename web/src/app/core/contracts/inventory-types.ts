@@ -79,6 +79,7 @@ export interface Hardware {
   motherboardSerial: string | null;
   computerManufacturer: string | null;
   computerModel: string | null;
+  deviceType?: 'LAPTOP' | 'DESKTOP' | 'UNKNOWN';
   osName: string | null;
   osVersion: string | null;
   osBuild: string | null;

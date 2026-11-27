@@ -11,13 +11,13 @@
       <label class="wide">Примечание<textarea rows="2" name="comment" [(ngModel)]="draft.assignment.comment" maxlength="2000"></textarea></label>
     </div>
     <details class="editor-group">
-      <summary>Процессор, системная плата, ОС и общие сведения об ОЗУ</summary>
+      <summary>Компьютер, процессор, системная плата, ОС и общие сведения об ОЗУ</summary>
       <div class="form-grid">
         @for (field of fields; track field.key) {
           <label>{{ field.label }}
             @if (field.choices; as choices) {
-              <select [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">
-                @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice) }}</option> }
+              <select [ngModelOptions]="standalone" [ngModel]="hardware()[field.key] ?? (field.choiceLabels ? 'UNKNOWN' : null)" (ngModelChange)="update(hardware(), field, $event)">
+                @for (choice of choices; track choice) { <option [ngValue]="choice">{{ label(choice, field) }}</option> }
               </select>
             } @else if (field.kind === 'number') {
               <input type="number" min="0" [ngModelOptions]="standalone" [ngModel]="hardware()[field.key]" (ngModelChange)="update(hardware(), field, $event)">

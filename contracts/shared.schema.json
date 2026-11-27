@@ -506,6 +506,9 @@
         "computerModel": {
           "$ref": "#/$defs/nullableText"
         },
+        "deviceType": {
+          "enum": ["LAPTOP", "DESKTOP", "UNKNOWN"]
+        },
         "osName": {
           "$ref": "#/$defs/nullableText"
         },

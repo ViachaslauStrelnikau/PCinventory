@@ -1,5 +1,23 @@
 [
   {
+    "name": "accepts a laptop in an inventory report",
+    "source": "pending",
+    "changes": [{ "path": "/hardware/deviceType", "value": "LAPTOP" }],
+    "expected": null
+  },
+  {
+    "name": "accepts a desktop in a computer card",
+    "source": "computer",
+    "changes": [{ "path": "/deviceType", "value": "DESKTOP" }],
+    "expected": null
+  },
+  {
+    "name": "rejects an unsupported device type",
+    "source": "pending",
+    "changes": [{ "path": "/hardware/deviceType", "value": "TABLET" }],
+    "expected": "JSON Schema"
+  },
+  {
     "name": "accepts a manually entered computer",
     "source": "manual-computer",
     "changes": [],

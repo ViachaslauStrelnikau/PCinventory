@@ -186,6 +186,8 @@ function acceptedCard(report, previous) {
   const assignmentChanged = !previous || Object.keys(assignment).some(key => assignment[key] !== previous[key]);
   return {
     ...effective.hardware,
+    ...(effective.hardware.deviceType === undefined && previous?.deviceType !== undefined
+      ? { deviceType: previous.deviceType } : {}),
     ...assignment,
     deviceId: report.deviceId,
     status: previous?.status ?? 'ACTIVE',
@@ -373,6 +375,7 @@ test('rejects spoofed metadata, invalid locations and invalid hardware fields', 
     ['numeric room', report => { report.assignment.room = 10; }],
     ['unknown assignment field', report => { report.assignment.status = 'ACTIVE'; }],
     ['unknown hardware field', report => { report.hardware.extra = true; }],
+    ['invalid device type', report => { report.hardware.deviceType = 'TABLET'; }],
     ['numeric nullable string', report => { report.hardware.motherboardSerial = 12; }],
     ['missing nullable field', report => { delete report.hardware.motherboardSerial; }],
     ['unsupported schema', report => { report.hardware.schemaVersion = 2; }],
@@ -414,6 +417,21 @@ test('atomic acceptance creates one card with the exact hardware, location and a
   }
   await assertFails(deleteDoc(doc(admin, cardPath(deviceId))));
   await assertFails(deleteDoc(doc(admin, reportPath(firstId))));
+});
+
+test('accepts a reported device type and retains it when an older agent omits it', async () => {
+  const laptop = submission();
+  laptop.hardware.deviceType = 'LAPTOP';
+  await submit(laptop);
+  await assertSucceeds(accept(firstId));
+  const previous = (await getDocFromServer(doc(admin, cardPath(deviceId)))).data();
+  assert.equal(previous.deviceType, 'LAPTOP');
+
+  const legacy = await submit(submission(secondId));
+  const card = acceptedCard(legacy, previous);
+  await assertFails(commitReview(legacy, { ...card, deviceType: 'DESKTOP' }));
+  await assertSucceeds(accept(secondId));
+  assert.equal((await getDocFromServer(doc(admin, cardPath(deviceId)))).data().deviceType, 'LAPTOP');
 });
 
 test('both acceptance writes and their document links are mandatory', async () => {

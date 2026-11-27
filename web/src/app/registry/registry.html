@@ -10,7 +10,7 @@
 </header>
 @if (data.cardsError() || exportError()) { <p class="notice error" role="alert">{{ data.cardsError() || exportError() }}</p> }
 <section class="panel toolbar" aria-label="Фильтры реестра">
-  <input type="search" aria-label="Поиск компьютеров" placeholder="Имя ПК, инвентарный номер, сотрудник или IP"
+  <input type="search" aria-label="Поиск компьютеров" placeholder="Имя ПК, модель, инвентарный номер, сотрудник или IP"
     [ngModel]="state.text()" (ngModelChange)="state.text.set($event); state.page.set(1)">
   <details class="dropdown">
     <summary class="button">Фильтры @if (state.filterCount()) { <span class="badge">{{ state.filterCount() }}</span> }</summary>
@@ -153,7 +153,13 @@
                 @for (column of visible(); track column.key) {
                   <td>
                     @switch (column.key) {
-                      @case ('host') { <a class="record-link" [routerLink]="['/computers', card.deviceId]">{{ card.hostname }}</a> }
+                      @case ('host') {
+                        <div class="device-identity">
+                          <a class="record-link" [routerLink]="['/computers', card.deviceId]">{{ card.hostname }}</a>
+                          @if (computerModelText(card); as model) { <span class="muted">{{ model }}</span> }
+                          <span class="device-type badge" [class.good]="card.deviceType === 'LAPTOP'">{{ deviceTypeText(card) }}</span>
+                        </div>
+                      }
                       @case ('status') { <span class="badge" [class.good]="card.status !== 'RETIRED'">{{ column.value(card) }}</span> }
                       @default { {{ column.value(card) ?? missing }} }
                     }

@@ -1,5 +1,7 @@
 package com.pcinventory.agent.collector;
 
+import com.pcinventory.agent.contract.Hardware.DeviceType;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -23,6 +25,7 @@ public final class HardwareSnapshot {
     public String osCaption;
     public String computerVendor;
     public String computerModel;
+    public DeviceType deviceType;
     public String cpuModelRaw;
     public String cpuModel;
     public String cpuVendor;

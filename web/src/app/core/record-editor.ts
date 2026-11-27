@@ -2,9 +2,11 @@ import { Component, input, output, type OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { optionalFields, optionalKeys, type Entry } from './inventory-data';
 import type { Hardware } from './contracts/inventory-types';
+import { deviceTypeLabels } from '../registry/registry-state';
 
 type Value = string | number | boolean | null | string[];
-type Field = { key: string; label: string; kind?: 'number' | 'addresses'; choices?: readonly Value[] };
+type Field = { key: string; label: string; kind?: 'number' | 'addresses'; choices?: readonly Value[];
+  choiceLabels?: Readonly<Record<string, string>> };
 const numbers = (pairs: [string, string][]): Field[] => pairs.map(([key, label]) => ({ key, label, kind: 'number' }));
 const texts = (pairs: [string, string][]): Field[] => pairs.map(([key, label]) => ({ key, label }));
 const ramTypes = ['DDR', 'DDR2', 'DDR2 FB-DIMM', 'DDR3', 'DDR4', 'DDR5', 'LPDDR', 'LPDDR2', 'LPDDR3', 'LPDDR4', 'LPDDR5'];
@@ -88,6 +90,7 @@ export class RecordEditor implements OnInit {
     ...optionalKeys.filter(key => key !== 'comment').map(key => ({ key, label: optionalFields[key], required: false, max: 256 })),
   ] as const;
   readonly fields: Field[] = [
+    { key: 'deviceType', label: 'Тип устройства', choices: ['UNKNOWN', 'LAPTOP', 'DESKTOP'], choiceLabels: deviceTypeLabels },
     ...texts([['cpuModel', 'Модель процессора'], ['cpuManufacturer', 'Производитель CPU'], ['cpuModelRaw', 'Исходная строка CPU']]),
     ...numbers([['cpuCores', 'Ядра'], ['cpuThreads', 'Потоки']]),
     ...texts([['motherboardManufacturer', 'Производитель платы'], ['motherboardModel', 'Модель материнской платы'],
@@ -115,7 +118,8 @@ export class RecordEditor implements OnInit {
       ? value.split(/[\s,;]+/).filter(Boolean) : typeof value === 'string' && !value.trim() ? null : value;
   }
 
-  label(value: Value): string {
+  label(value: Value, field?: Field): string {
+    if (typeof value === 'string' && field?.choiceLabels) return field.choiceLabels[value] ?? value;
     if (value === true) return 'Занят';
     if (value === false) return 'Свободен';
     return value === null || value === 'UNKNOWN' ? 'Неизвестно'

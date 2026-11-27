@@ -39,6 +39,7 @@ public final class HardwareReport {
         hardware.motherboardSerial = snapshot.boardSerial;
         hardware.computerManufacturer = snapshot.computerVendor;
         hardware.computerModel = snapshot.computerModel;
+        hardware.deviceType = snapshot.deviceType;
         hardware.osName = snapshot.osCaption == null ? snapshot.osFamily : snapshot.osCaption;
         hardware.osVersion = snapshot.osVersion;
         hardware.osBuild = snapshot.osBuild;

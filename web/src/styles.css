@@ -294,3 +294,7 @@ tbody tr:hover { background: #f8faff; }
   .form-grid, .record-details, .stats-charts { grid-template-columns: minmax(0, 1fr); }
   .inbox-item { font-size: .9rem; }
 }
+
+.device-identity { display: grid; justify-items: start; gap: .25rem; min-width: 9rem; }
+.device-identity .muted { font-size: .8125rem; }
+.device-identity .device-type { margin: 0; }

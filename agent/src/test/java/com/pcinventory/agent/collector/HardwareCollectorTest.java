@@ -1,5 +1,6 @@
 package com.pcinventory.agent.collector;
 
+import com.pcinventory.agent.contract.Hardware.DeviceType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,6 +24,19 @@ class HardwareCollectorTest {
     @Test
     void normalizesCpuWithoutDroppingModelSuffix() {
         assertEquals("Intel Core i7-12700K", HardwareNormalization.cpuModel(" Intel(R)  Core(TM) i7-12700K @ 3.60 GHz "));
+    }
+
+    @Test
+    void classifiesReportedDeviceTypeWithoutGuessingOtherSystems() {
+        assertEquals(DeviceType.DESKTOP, WindowsHardwareSource.deviceType(1));
+        assertEquals(DeviceType.LAPTOP, WindowsHardwareSource.deviceType(2));
+        for (int type : new int[] {0, 3, 4, 8}) {
+            assertNull(WindowsHardwareSource.deviceType(type));
+        }
+        HardwareSnapshot result = snapshot(0);
+        result.deviceId = "smbios-" + UUID;
+        result.deviceType = DeviceType.LAPTOP;
+        assertEquals(DeviceType.LAPTOP, HardwareReport.from(result).deviceType);
     }
 
     @Test
