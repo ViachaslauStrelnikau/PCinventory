@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { agentReleasesUrl, loadAgentRelease } from './core/agent-release';
 import { InventoryData, messageFor } from './core/inventory-data';
 import { meetsPasswordPolicy, passwordHint, passwordMaxLength } from './core/password-policy';
 
@@ -32,6 +33,15 @@ import { meetsPasswordPolicy, passwordHint, passwordMaxLength } from './core/pas
           {{ registering() ? 'Вернуться ко входу' : 'Запросить доступ' }}
         </button>
       </form>
+      @if (!registering()) {
+        <div class="login-download">
+          @if (agentRelease(); as release) {
+            <a [href]="release.url">Скачать агент для Windows <span class="muted">({{ release.version }})</span></a>
+          } @else {
+            <a [href]="agentReleasesUrl">Сборки агента для Windows</a>
+          }
+        </div>
+      }
     </section>`,
 })
 export class Login {
@@ -43,7 +53,13 @@ export class Login {
   readonly notice = signal('');
   readonly passwordHint = passwordHint;
   readonly passwordMaxLength = passwordMaxLength;
+  readonly agentReleasesUrl = agentReleasesUrl;
+  readonly agentRelease = signal<Awaited<ReturnType<typeof loadAgentRelease>>>(null);
   confirmation = '';
+
+  constructor() {
+    void loadAgentRelease().then(release => this.agentRelease.set(release));
+  }
 
   get passwordPairValid(): boolean {
     return this.password === this.confirmation && meetsPasswordPolicy(this.password);

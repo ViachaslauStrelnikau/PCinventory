@@ -93,6 +93,8 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 .login-card { padding: 1.85rem; }
 .login-card h1 { margin-top: 1.6rem; }
 .login-card p { margin-top: .55rem; }
+.login-download { margin-top: 1.15rem; padding-top: 1rem; border-top: 1px solid var(--line); text-align: center; }
+.login-download a { text-decoration: underline; text-underline-offset: .16em; }
 .form-stack { display: grid; gap: .85rem; margin-top: 1.4rem; }
 .form-stack > label, .form-grid > label { display: block; min-width: 0; font-weight: 600; }
 .form-stack input, .form-grid input, .form-grid select, .form-grid textarea { width: 100%; margin-top: .3rem; }
