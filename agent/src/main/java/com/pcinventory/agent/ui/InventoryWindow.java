@@ -42,6 +42,8 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -141,6 +143,12 @@ public final class InventoryWindow extends JFrame {
             showStatus("Демонстрационные данные. Регистрация недоступна.", true);
         } else {
             showStatus("Ожидание чтения конфигурации", false);
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowOpened(WindowEvent event) {
+                    readConfiguration();
+                }
+            });
             if (account != null) loadLocations();
         }
     }
@@ -246,6 +254,7 @@ public final class InventoryWindow extends JFrame {
     }
 
     private void readConfiguration() {
+        if (busy) return;
         if (preview) {
             hardware.showPreview();
             showStatus("Демонстрационные данные. Регистрация недоступна.", true);
