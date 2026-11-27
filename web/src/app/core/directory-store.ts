@@ -27,7 +27,8 @@ export function touchDirectory(transaction: Transaction, db: Firestore): void {
   transaction.set(directoryVersion(db), { updatedAt: serverTimestamp() });
 }
 
-export async function indexLocation(transaction: Transaction, db: Firestore, value: InventoryLocation): Promise<void> {
+export async function indexLocation(transaction: Transaction, db: Firestore, value: InventoryLocation,
+    requireExisting = false): Promise<void> {
   const ids = await Promise.all(locationParents(value).map(locationId));
   const ref = doc(db, 'locations', ids.at(-1)!);
   const [current, ...aliases] = await Promise.all([
@@ -37,23 +38,33 @@ export async function indexLocation(transaction: Transaction, db: Firestore, val
     throw new Error(aliases.some(alias => alias.get('kind') === 'DELETED') ? 'location-deleted' : 'location-renamed');
   }
   const stored = current.data();
+  if (!stored && requireExisting) throw new Error('location-missing');
   if (!stored) transaction.set(ref, locationFields(value));
   else if (!validDirectoryLocation(stored) || key(stored) !== key(value)) throw new Error('invalid-location');
   touchDirectory(transaction, db);
 }
 
-async function readDirectory(db: Firestore) {
-  const [current, old] = await Promise.all([
-    getDocs(collection(db, 'locations')), getDocs(collection(db, 'locationRenames')),
-  ]);
+async function readLocations(db: Firestore): Promise<StoredLocation[]> {
+  const current = await getDocs(collection(db, 'locations'));
   const entries: StoredLocation[] = [];
-  const aliases: OldLocation[] = [];
   for (const item of current.docs) {
     const data = item.data();
     if (validDirectoryLocation(data)) {
       entries.push({ id: item.id, location: locationFields(data), roomId: item.get('roomId') });
     }
   }
+  return entries;
+}
+
+export async function listLocations(db: Firestore): Promise<InventoryLocation[]> {
+  return (await readLocations(db)).map(item => item.location);
+}
+
+async function readDirectory(db: Firestore) {
+  const [entries, old] = await Promise.all([
+    readLocations(db), getDocs(collection(db, 'locationRenames')),
+  ]);
+  const aliases: OldLocation[] = [];
   for (const item of old.docs) {
     const data = item.data();
     if (validDirectoryLocation(data)) {

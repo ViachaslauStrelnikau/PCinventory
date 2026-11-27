@@ -1,8 +1,9 @@
-import { Component, input, output, type OnInit } from '@angular/core';
+import { Component, inject, input, output, signal, type OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { optionalFields, optionalKeys, type Entry } from './inventory-data';
+import { InventoryData, optionalFields, optionalKeys, type Entry } from './inventory-data';
 import type { Hardware } from './contracts/inventory-types';
-import { deviceTypeLabels } from '../registry/registry-state';
+import { collator, deviceTypeLabels } from '../registry/registry-state';
+import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
 
 type Value = string | number | boolean | null | string[];
 type Field = { key: string; label: string; kind?: 'number' | 'addresses'; choices?: readonly Value[] };
@@ -77,17 +78,23 @@ function normalize(h: Hardware, previous: Hardware): void {
 
 @Component({ selector: 'app-record-editor', imports: [FormsModule], templateUrl: './record-editor.html' })
 export class RecordEditor implements OnInit {
+  private readonly data = inject(InventoryData);
+  private readonly locations = signal<InventoryLocation[]>([]);
   readonly entry = input.required<Entry>();
   readonly busy = input(false);
   readonly report = input(false);
   readonly saveLabel = input('Сохранить');
   readonly save = output<Entry>();
   readonly cancel = output<void>();
-  readonly assignmentFields = [
-    { key: 'building', label: 'Здание', required: true, max: 256 }, { key: 'floor', label: 'Этаж', required: true, max: 64 },
-    { key: 'room', label: 'Кабинет', required: true, max: 64 },
-    ...optionalKeys.filter(key => key !== 'comment').map(key => ({ key, label: optionalFields[key], required: false, max: 256 })),
+  readonly locationFields = [
+    { key: 'building', label: 'Здание', prompt: 'Выберите здание', max: 256 },
+    { key: 'floor', label: 'Этаж', prompt: 'Выберите этаж', max: 64 },
+    { key: 'room', label: 'Кабинет', prompt: 'Выберите кабинет', max: 64 },
   ] as const;
+  readonly assignmentFields = optionalKeys.filter(key => key !== 'comment');
+  readonly optionalFields = optionalFields;
+  readonly locationsLoading = signal(false);
+  readonly locationsError = signal(false);
   readonly deviceTypes = Object.entries(deviceTypeLabels);
   readonly fields: Field[] = [
     ...texts([['cpuModel', 'Модель процессора'], ['cpuManufacturer', 'Производитель CPU'], ['cpuModelRaw', 'Исходная строка CPU']]),
@@ -107,6 +114,44 @@ export class RecordEditor implements OnInit {
   ngOnInit(): void {
     const { hardware, assignment } = this.entry();
     this.draft = structuredClone({ hardware, assignment });
+    if (!this.report()) void this.loadLocations();
+  }
+
+  async loadLocations(): Promise<void> {
+    this.locationsLoading.set(true);
+    this.locationsError.set(false);
+    try {
+      this.locations.set(await this.data.loadLocations());
+      for (const { key } of this.locationFields) {
+        const value = this.draft.assignment[key];
+        if (value && !this.locationOptions(key).includes(value)) this.changeLocation(key, '');
+      }
+    } catch {
+      this.locations.set([]);
+      this.locationsError.set(true);
+    } finally {
+      this.locationsLoading.set(false);
+    }
+  }
+
+  locationOptions(level: keyof InventoryLocation): string[] {
+    const { building, floor } = this.draft.assignment;
+    const original = this.entry().assignment;
+    const options = [original, ...this.locations()].filter(location =>
+      level === 'building' || (location.building === building && (level === 'floor' || location.floor === floor)));
+    return [...new Set(options.map(location => location[level]).filter(Boolean))].sort(collator.compare);
+  }
+
+  changeLocation(level: keyof InventoryLocation, value: string): void {
+    const assignment = this.draft.assignment;
+    if (assignment[level] === value) return;
+    assignment[level] = value;
+    if (level === 'building') assignment.floor = '';
+    if (level !== 'room') assignment.room = '';
+  }
+
+  locationReady(): boolean {
+    return this.report() || (!this.locationsLoading() && this.locationOptions('room').includes(this.draft.assignment.room));
   }
 
   hardware(): Record<string, Value> { return this.draft.hardware as unknown as Record<string, Value>; }
@@ -126,9 +171,12 @@ export class RecordEditor implements OnInit {
   }
 
   submit(): void {
+    if (!this.locationReady()) return;
     const entry = structuredClone(this.draft);
     entry.hardware.hostname = entry.hardware.hostname.trim();
-    for (const key of ['building', 'floor', 'room'] as const) entry.assignment[key] = entry.assignment[key].trim();
+    if (this.report()) {
+      for (const { key } of this.locationFields) entry.assignment[key] = entry.assignment[key].trim();
+    }
     for (const key of optionalKeys) {
       const value = entry.assignment[key]?.trim();
       if (this.report() && !value) delete entry.assignment[key];

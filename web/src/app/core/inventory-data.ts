@@ -7,7 +7,7 @@ import { Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, 
   runTransaction, serverTimestamp, setDoc } from 'firebase/firestore/lite';
 import type { DocumentData, Firestore } from 'firebase/firestore/lite';
 import type { InventoryLocation } from '../../../../shared/location-directory.mjs';
-import { changeDirectory, indexLocation, loadDirectory, resolveCardLocation, touchDirectory, type DirectoryCommand } from './directory-store';
+import { changeDirectory, indexLocation, listLocations, loadDirectory, resolveCardLocation, touchDirectory, type DirectoryCommand } from './directory-store';
 import { readComputer, readReport } from './contracts/inventory-contract';
 import type { Assignment, ComputerDocument, ContractTimestamp, Hardware, InventoryReport } from './contracts/inventory-types';
 import { meetsPasswordPolicy, passwordHint } from './password-policy';
@@ -112,6 +112,9 @@ function directoryError(error: unknown): never {
   }
   if (error instanceof Error && error.message === 'location-renamed') {
     throw new InventoryError('Расположение переименовано. Укажите актуальные здание, этаж и кабинет.');
+  }
+  if (error instanceof Error && error.message === 'location-missing') {
+    throw new InventoryError('Расположение больше не доступно. Обновите список и выберите другое.');
   }
   throw error;
 }
@@ -298,6 +301,10 @@ export class InventoryData {
     await this.refreshCards();
   }
 
+  async loadLocations(): Promise<InventoryLocation[]> {
+    return listLocations(this.connection().db);
+  }
+
   async refreshCards(): Promise<void> {
     const { db } = this.connection();
     const request = ++this.cardsRequest;
@@ -381,7 +388,7 @@ export class InventoryData {
     await runTransaction(db, async transaction => {
       const ref = doc(db, 'computers', id);
       if ((await transaction.get(ref)).exists()) throw new InventoryError('Идентификатор занят. Повторите сохранение.');
-      await indexLocation(transaction, db, card).catch(directoryError);
+      await indexLocation(transaction, db, card, true).catch(directoryError);
       transaction.set(ref, { ...card, assignmentUpdatedAt: serverTimestamp() });
     });
     await this.refreshCards();
@@ -395,7 +402,8 @@ export class InventoryData {
       sameVersion(decode((await transaction.get(ref)).data()), this.originalCards.get(seen) ?? seen);
       const updates = { ...entry.hardware, ...requiredAssignment(entry.assignment) };
       readComputer({ ...seen, ...updates });
-      await indexLocation(transaction, db, entry.assignment).catch(directoryError);
+      const moved = seen.building !== updates.building || seen.floor !== updates.floor || seen.room !== updates.room;
+      await indexLocation(transaction, db, entry.assignment, moved).catch(directoryError);
       transaction.update(ref, { ...updates, assignmentUpdatedAt: serverTimestamp(), assignmentUpdatedBy: session.uid });
     });
     await this.refreshCards();
