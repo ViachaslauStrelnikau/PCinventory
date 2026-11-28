@@ -29,11 +29,13 @@ import java.util.function.Supplier;
 import static com.pcinventory.agent.collector.HardwareNormalization.text;
 
 public final class WindowsHardwareSource implements HardwareSource {
+    private static final String STORAGE_NAMESPACE = "ROOT\\Microsoft\\Windows\\Storage";
     private enum MemoryArray { USE, MEMORYDEVICES }
     private enum Memory { DEVICELOCATOR, BANKLABEL, CAPACITY, MANUFACTURER, SPEED, MEMORYTYPE, PARTNUMBER, FORMFACTOR }
     private enum Video { NAME, ADAPTERCOMPATIBILITY }
-    private enum DiskDrive { MODEL, SIZE, INTERFACETYPE, MEDIATYPE, PNPDEVICEID, SERIALNUMBER }
+    private enum DiskDrive { INDEX, MODEL, SIZE, INTERFACETYPE, MEDIATYPE, PNPDEVICEID, SERIALNUMBER }
     private enum PhysicalDisk { SERIALNUMBER, MEDIATYPE, BUSTYPE, SIZE }
+    private enum StorageDisk { NUMBER, BUSTYPE }
     private enum Product { UUID }
     private enum SystemProfile { PCSYSTEMTYPE, MANUFACTURER, MODEL }
     private enum WindowsEdition { CAPTION }
@@ -205,8 +207,8 @@ public final class WindowsHardwareSource implements HardwareSource {
 
         private void readDisks() {
             WmiResult<DiskDrive> drives = query("Win32_DiskDrive", DiskDrive.class);
-            WmiResult<PhysicalDisk> physical = query("ROOT\\Microsoft\\Windows\\Storage",
-                    "MSFT_PhysicalDisk", PhysicalDisk.class);
+            WmiResult<PhysicalDisk> physical = query(STORAGE_NAMESPACE, "MSFT_PhysicalDisk", PhysicalDisk.class);
+            Map<Long, Long> busesByNumber = readDiskBuses();
             Map<String, Integer> diskSerialCounts = new HashMap<>();
             for (int row = 0; row < count(drives); row++) {
                 String serial = HardwareNormalization.diskSerial(drives.getValue(DiskDrive.SERIALNUMBER, row));
@@ -227,16 +229,15 @@ public final class WindowsHardwareSource implements HardwareSource {
                 }
                 String serial = HardwareNormalization.diskSerial(drives.getValue(DiskDrive.SERIALNUMBER, row));
                 int match = diskSerialCounts.getOrDefault(serial, 0) == 1 ? matchDisk(physical, serial) : -1;
+                Long number = HardwareNormalization.diskNumber(drives.getValue(DiskDrive.INDEX, row));
+                long numberedBus = busesByNumber.getOrDefault(number, 0L);
+                long physicalBus = match < 0 ? 0 : positive(physical.getValue(PhysicalDisk.BUSTYPE, match));
+                if (excludedDiskBus(numberedBus) || excludedDiskBus(physicalBus)) {
+                    continue;
+                }
+                connection = HardwareNormalization.diskInterface(connection, numberedBus, physicalBus);
                 String type = "UNKNOWN";
                 if (match >= 0) {
-                    long busType = positive(physical.getValue(PhysicalDisk.BUSTYPE, match));
-                    if (busType == 4 || busType == 7 || busType == 9 || busType == 15 || busType == 16) {
-                        continue;
-                    }
-                    String bus = HardwareNormalization.diskBus(busType);
-                    if (bus != null) {
-                        connection = bus;
-                    }
                     long physicalSize = positive(physical.getValue(PhysicalDisk.SIZE, match));
                     capacity = physicalSize > 0 ? physicalSize : capacity;
                     type = HardwareNormalization.diskType(positive(physical.getValue(PhysicalDisk.MEDIATYPE, match)));
@@ -251,6 +252,23 @@ public final class WindowsHardwareSource implements HardwareSource {
             if (snapshot.disks.isEmpty() || snapshot.disks.stream().anyMatch(disk -> "UNKNOWN".equals(disk.type))) {
                 snapshot.warnings.add("Тип одного или нескольких накопителей недоступен");
             }
+        }
+
+        private Map<Long, Long> readDiskBuses() {
+            WmiResult<StorageDisk> storage = query(STORAGE_NAMESPACE, "MSFT_Disk", StorageDisk.class);
+            Map<Long, Long> buses = new HashMap<>();
+            for (int row = 0; row < count(storage); row++) {
+                Long number = HardwareNormalization.diskNumber(storage.getValue(StorageDisk.NUMBER, row));
+                if (number != null) {
+                    long bus = positive(storage.getValue(StorageDisk.BUSTYPE, row));
+                    buses.merge(number, bus, (first, second) -> 0L);
+                }
+            }
+            return buses;
+        }
+
+        private static boolean excludedDiskBus(long bus) {
+            return bus == 4 || bus == 7 || bus == 9 || bus == 15 || bus == 16;
         }
 
         private int matchDisk(WmiResult<PhysicalDisk> physical, String serial) {

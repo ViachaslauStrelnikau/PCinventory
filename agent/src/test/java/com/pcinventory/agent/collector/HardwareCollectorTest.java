@@ -127,6 +127,23 @@ class HardwareCollectorTest {
         assertEquals("SATA", HardwareNormalization.diskBus(11));
     }
 
+    @Test
+    void usesNumberedStorageBusWithoutTreatingLegacyIdeAsSata() {
+        assertEquals(Long.valueOf(0), HardwareNormalization.diskNumber(0));
+        assertEquals(Long.valueOf(2), HardwareNormalization.diskNumber("2"));
+        assertNull(HardwareNormalization.diskNumber(null));
+        assertNull(HardwareNormalization.diskNumber(-1));
+        assertNull(HardwareNormalization.diskNumber(0xffff_ffffL));
+        assertNull(HardwareNormalization.diskNumber("unknown"));
+        assertEquals("SATA", HardwareNormalization.diskInterface("IDE", 11, 0));
+        assertEquals("SATA", HardwareNormalization.diskInterface("IDE", 11, 3));
+        assertEquals("SATA", HardwareNormalization.diskInterface("IDE", 0, 11));
+        assertEquals("ATA", HardwareNormalization.diskInterface("IDE", 3, 0));
+        assertEquals("SCSI", HardwareNormalization.diskInterface("SCSI", 0, 0));
+        assertEquals("NVMe", HardwareNormalization.diskInterface("SCSI", 17, 0));
+        assertNull(HardwareNormalization.diskInterface("IDE", 0, 0));
+    }
+
     private static HardwareSnapshot snapshot(int slots) {
         HardwareSnapshot result = new HardwareSnapshot();
         result.slotsTotal = slots;

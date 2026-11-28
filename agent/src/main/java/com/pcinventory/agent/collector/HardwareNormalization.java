@@ -211,6 +211,24 @@ final class HardwareNormalization {
         return mediaType == 3 ? "HDD" : mediaType == 4 ? "SSD" : "UNKNOWN";
     }
 
+    static Long diskNumber(Object value) {
+        if (value == null) return null;
+        try {
+            long number = Long.parseLong(value.toString());
+            return number >= 0 && number < 0xffff_ffffL ? number : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    static String diskInterface(String legacy, long numberedBus, long physicalBus) {
+        String bus = diskBus(numberedBus);
+        if (bus == null) bus = diskBus(physicalBus);
+        if (bus != null) return bus;
+        // The legacy IDE label can describe a SATA disk as well as an IDE disk.
+        return "IDE".equalsIgnoreCase(legacy) ? null : legacy;
+    }
+
     static String diskBus(long type) {
         switch ((int) type) {
             case 1: return "SCSI";
