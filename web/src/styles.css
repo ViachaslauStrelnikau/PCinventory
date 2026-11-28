@@ -178,6 +178,8 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 .location-tree-actions button { padding: .35rem .3rem; font-size: .85rem; }
 .directory-path { margin-bottom: .75rem; overflow-wrap: anywhere; }
 @media (min-width: 801px) {
+  .workspace:has(> app-registry) { max-width: 1800px; }
+  app-registry .registry-grid { grid-template-columns: clamp(15rem, 26%, 22rem) minmax(0, 1fr); }
   .directory-grid { grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr); }
 }
 .location-tree .tree-indent { margin-inline-start: var(--tree-step); }
