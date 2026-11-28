@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal, type OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { ComputerDocument } from '../core/contracts/inventory-types';
@@ -7,14 +7,20 @@ import { RecordEditor, manualEntry } from '../core/record-editor';
 import { RecordDetails } from '../core/record-details';
 import { dateText, stateLabels } from './registry-state';
 
-@Component({ imports: [RouterLink, RecordEditor, RecordDetails], templateUrl: './card.html' })
-export class Card {
+@Component({ selector: 'app-computer-card', imports: [RouterLink, RecordEditor, RecordDetails], templateUrl: './card.html' })
+export class Card implements OnInit {
   readonly data = inject(InventoryData);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private loadRequest = 0;
+  readonly embeddedId = input<string>();
+  readonly removed = output<void>();
   readonly card = signal<ComputerDocument | null>(null);
   readonly draft = signal<Entry | null>(null);
   readonly entry = computed(() => this.card() ? editorEntry(this.card()!) : null);
   readonly id = signal<string | null>(null);
+  readonly title = computed(() => !this.id() ? 'Новая карточка ПК' : this.card()?.hostname || 'Карточка компьютера');
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -23,30 +29,36 @@ export class Card {
   readonly dateText = dateText;
   readonly stateLabels = stateLabels;
 
-  constructor() {
-    inject(ActivatedRoute).paramMap.pipe(takeUntilDestroyed()).subscribe(params => {
-      this.id.set(params.get('id'));
-      this.card.set(null);
-      this.confirming.set(false);
-      this.error.set('');
-      this.notice.set('');
-      this.draft.set(this.id() ? null : manualEntry());
-      if (this.id()) void this.load();
-    });
+  ngOnInit(): void {
+    const embedded = this.embeddedId();
+    if (embedded) this.open(embedded);
+    else this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => this.open(params.get('id')));
+  }
+
+  private open(id: string | null): void {
+    this.id.set(id);
+    this.card.set(null);
+    this.confirming.set(false);
+    this.error.set('');
+    this.notice.set('');
+    this.draft.set(id ? null : manualEntry());
+    if (id) void this.load();
+    else this.loading.set(false);
   }
 
   async load(): Promise<void> {
     const id = this.id();
     if (!id) return;
+    const request = ++this.loadRequest;
     this.error.set('');
     this.loading.set(true);
     try {
       const record = await this.data.loadCard(id);
-      if (id === this.id()) this.card.set(record);
+      if (request === this.loadRequest && id === this.id()) this.card.set(record);
     } catch (error) {
-      if (id === this.id()) this.error.set(messageFor(error));
+      if (request === this.loadRequest && id === this.id()) this.error.set(messageFor(error));
     } finally {
-      if (id === this.id()) this.loading.set(false);
+      if (request === this.loadRequest && id === this.id()) this.loading.set(false);
     }
   }
 
@@ -89,7 +101,8 @@ export class Card {
   async purge(card: ComputerDocument): Promise<void> {
     await this.perform(async () => {
       await this.data.purge(card);
-      await this.router.navigateByUrl('/computers');
+      if (this.embeddedId()) this.removed.emit();
+      else await this.router.navigateByUrl('/computers');
     });
   }
 

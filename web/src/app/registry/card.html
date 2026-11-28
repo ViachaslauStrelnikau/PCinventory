@@ -1,7 +1,10 @@
-<a class="back-link" routerLink="/computers"><span aria-hidden="true">← </span>Реестр компьютеров</a>
+@if (!embeddedId()) {
+  <a class="back-link" routerLink="/computers"><span aria-hidden="true">← </span>Реестр компьютеров</a>
+}
 <header class="page-heading">
   <div>
-    <h1>{{ !id() ? 'Новая карточка ПК' : card()?.hostname || 'Карточка компьютера' }}</h1>
+    @if (embeddedId()) { <h2 class="registry-card-title">{{ title() }}</h2> }
+    @else { <h1>{{ title() }}</h1> }
     @if (card(); as record) {
       <p>{{ record.building }} / Этаж {{ record.floor }} / Каб. {{ record.room }}
         <span class="badge" [class.good]="record.status !== 'RETIRED'">{{ stateLabels[record.status ?? 'ACTIVE'] }}</span>

@@ -163,6 +163,9 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
 .check { display: flex; align-items: baseline; gap: .48rem; padding: .25rem 0; cursor: pointer; overflow-wrap: anywhere; }
 .check input { margin: 0; flex-shrink: 0; }
 .registry-grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: .9rem; align-items: start; }
+.registry-card { display: block; min-width: 0; }
+.registry-card-title { font-size: clamp(1.35rem, 2vw, 1.75rem); line-height: 1.25; overflow-wrap: anywhere; }
+.registry-card .page-heading { gap: .65rem; }
 .location-tree {
   --tree-step: 1.4rem;
   --tree-marker-width: .75rem;
@@ -199,6 +202,7 @@ fieldset { padding: 0; margin: 0; min-width: 0; border: 0; }
   color: inherit; font-variant-numeric: normal; min-width: 0;
 }
 .tree-label-text { min-width: 0; }
+.tree-computer-status { font-size: .8rem; }
 .tree-icon {
   position: relative; flex: 0 0 19px; width: 19px; height: 19px;
   margin-block-start: 1px; border-radius: 4px;

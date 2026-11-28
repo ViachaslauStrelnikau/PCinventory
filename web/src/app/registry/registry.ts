@@ -1,17 +1,27 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { InventoryData } from '../core/inventory-data';
-import { RegistryState, collator, columns, computerModelText, deviceTypeText, filters, missing, setLocationTreeOpen } from './registry-state';
+import { RegistryState, collator, columns, computerModelText, deviceTypeText, filters, missing, setLocationTreeOpen,
+  type Place } from './registry-state';
+import { Card } from './card';
 import { exportCards } from './xlsx-export';
 
-@Component({ selector: 'app-registry', imports: [FormsModule, NgTemplateOutlet, RouterLink], templateUrl: './registry.html' })
+@Component({ selector: 'app-registry', imports: [FormsModule, NgTemplateOutlet, RouterLink, Card], templateUrl: './registry.html' })
 export class Registry {
   readonly data = inject(InventoryData);
   readonly state = inject(RegistryState);
   readonly setTreeOpen = setLocationTreeOpen;
   private readonly treeNodes = viewChild<ElementRef<HTMLElement>>('treeNodes');
+  private readonly desktopViewport = matchMedia('(min-width: 801px)');
+  readonly desktop = signal(this.desktopViewport.matches);
+  readonly selectedId = signal<string | null>(null);
+  readonly embeddedCard = viewChild(Card);
+  readonly embeddedCardIds = computed(() => {
+    const id = this.selectedId();
+    return this.desktop() && id ? [id] : [];
+  });
   readonly computerModelText = computerModelText;
   readonly deviceTypeText = deviceTypeText;
   readonly columns = columns;
@@ -26,6 +36,12 @@ export class Registry {
   readonly exportError = signal('');
 
   constructor() {
+    const resize = (event: MediaQueryListEvent) => {
+      this.desktop.set(event.matches);
+      if (!event.matches) this.selectedId.set(null);
+    };
+    this.desktopViewport.addEventListener('change', resize);
+    inject(DestroyRef).onDestroy(() => this.desktopViewport.removeEventListener('change', resize));
     if (!this.data.cardsLoaded()) void this.data.refreshCards();
     afterRenderEffect({
       earlyRead: () => {
@@ -47,11 +63,31 @@ export class Registry {
     });
   }
 
+  selectPlace(place: Place | null): void {
+    this.selectedId.set(null);
+    this.state.setPlace(place);
+  }
+
+  openCard(id: string, place: Place): void {
+    if (this.selectedId() === id) this.selectedId.set(null);
+    else {
+      this.state.setPlace(place);
+      this.selectedId.set(id);
+    }
+  }
+
+  refresh(): void {
+    const card = this.embeddedCard();
+    void this.data.refreshCards();
+    if (card && !card.draft() && !card.busy()) void card.load();
+  }
+
   toggleColumn(key: string): void {
     this.state.visibleColumns.update(list => list.includes(key) ? list.filter(item => item !== key) : [...list, key]);
   }
 
   toggleFilter(key: string, value: string, checked: boolean): void {
+    this.selectedId.set(null);
     const values = this.state.choices()[key] ?? [];
     this.state.setChoices(key, checked ? [...values, value] : values.filter(item => item !== value));
   }

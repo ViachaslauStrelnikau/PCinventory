@@ -1,7 +1,7 @@
 <header class="page-heading">
   <div><h1>Реестр компьютеров</h1><p>Найдено ПК: {{ state.filtered().length }}</p></div>
   <div class="actions">
-    <button type="button" (click)="data.refreshCards()" [disabled]="data.cardsLoading()">Обновить</button>
+    <button type="button" (click)="refresh()" [disabled]="data.cardsLoading() || embeddedCard()?.loading()">Обновить</button>
     @if (data.admin()) { <a class="button" routerLink="/computers/new">Добавить ПК</a> }
     <button type="button" class="primary" (click)="download()" [class.is-spinning]="exporting()" [disabled]="!state.filtered().length || exporting()">
       {{ exporting() ? 'Подготовка…' : 'Экспорт в Excel' }}
@@ -11,7 +11,7 @@
 @if (data.cardsError() || exportError()) { <p class="notice error" role="alert">{{ data.cardsError() || exportError() }}</p> }
 <section class="panel toolbar" aria-label="Фильтры реестра">
   <input type="search" aria-label="Поиск компьютеров" placeholder="Имя ПК, модель, инвентарный номер, сотрудник или IP"
-    [ngModel]="state.text()" (ngModelChange)="state.text.set($event); state.page.set(1)">
+    [ngModel]="state.text()" (ngModelChange)="state.text.set($event); state.page.set(1); selectedId.set(null)">
   <details class="dropdown">
     <summary class="button">Фильтры @if (state.filterCount()) { <span class="badge">{{ state.filterCount() }}</span> }</summary>
     <div class="dropdown-content filters">
@@ -31,7 +31,7 @@
           </details>
         }
       }
-      <button type="button" (click)="state.reset()">Сбросить фильтры</button>
+      <button type="button" (click)="state.reset(); selectedId.set(null)">Сбросить фильтры</button>
     </div>
   </details>
   <details class="dropdown">
@@ -48,7 +48,7 @@
   <aside class="panel location-tree" aria-label="Расположение">
     <h2>Расположение</h2>
     <input class="location-search" type="search" aria-label="Поиск по расположению" placeholder="Здание, этаж, кабинет"
-      [ngModel]="state.locationSearch()" (ngModelChange)="state.searchLocations($event)">
+      [ngModel]="state.locationSearch()" (ngModelChange)="state.searchLocations($event); selectedId.set(null)">
     <div class="location-tree-actions">
       <button type="button" aria-controls="registry-location-tree" [disabled]="!state.tree().length"
         (click)="setTreeOpen(treeNodes, true)">Развернуть все</button>
@@ -56,7 +56,7 @@
         (click)="setTreeOpen(treeNodes, false)">Свернуть все</button>
     </div>
     @if (data.locationsError()) { <p class="muted" role="status">{{ data.locationsError() }}</p> }
-    <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="state.setPlace(null)">
+    <button type="button" class="tree-button" [class.selected]="!state.place()" (click)="selectPlace(null)">
       <span class="tree-label"><span class="tree-icon tree-icon-building" aria-hidden="true"></span>Все здания</span>
       <span>{{ state.filteredWithoutPlace().length }}</span>
     </button>
@@ -79,7 +79,7 @@
         <details #buildingNode>
           <summary>
             <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && !state.place()?.floor"
-              (click)="state.setPlace({ building: building.name }); buildingNode.open = true">
+              (click)="selectPlace({ building: building.name }); buildingNode.open = true">
               <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: building.name, level: 'building' }" />
               <span>{{ building.count }}</span>
             </button>
@@ -88,7 +88,7 @@
             <details #floorNode class="tree-indent">
               <summary>
                 <button type="button" class="tree-button" [class.selected]="state.place()?.building === building.name && state.place()?.floor === floor.name && !state.place()?.room"
-                  (click)="state.setPlace({ building: building.name, floor: floor.name }); floorNode.open = true">
+                  (click)="selectPlace({ building: building.name, floor: floor.name }); floorNode.open = true">
                   <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Этаж ' + floor.name, level: 'floor' }" />
                   <span>{{ floor.count }}</span>
                 </button>
@@ -100,21 +100,32 @@
                   <details #roomNode class="tree-indent">
                     <summary>
                       <button type="button" class="tree-button" [class.selected]="selected"
-                        (click)="state.setPlace(place); roomNode.open = true">
+                        (click)="selectPlace(place); roomNode.open = true">
                         <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Каб. ' + room.name, level: 'room' }" />
                         <span>{{ room.count }}</span>
                       </button>
                     </summary>
                     @for (card of room.cards; track card.deviceId) {
-                      <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
-                        <span class="tree-label"><span class="tree-icon tree-icon-computer" aria-hidden="true"></span>{{ card.hostname }}</span>
-                        @if (card.status === 'RETIRED') { <span>В архиве</span> }
-                      </a>
+                      <ng-template #computerLabel>
+                        <span class="tree-label"><span class="tree-icon tree-icon-computer" aria-hidden="true"></span><span class="tree-label-text">{{ card.hostname }}</span></span>
+                        @if (card.status === 'RETIRED') { <span class="tree-computer-status">В архиве</span> }
+                      </ng-template>
+                      @if (desktop()) {
+                        <button type="button" class="record-link tree-button tree-indent tree-computer"
+                          [class.selected]="selectedId() === card.deviceId" [attr.aria-pressed]="selectedId() === card.deviceId"
+                          (click)="openCard(card.deviceId, place)">
+                          <ng-container *ngTemplateOutlet="computerLabel" />
+                        </button>
+                      } @else {
+                        <a class="record-link tree-button tree-indent" [routerLink]="['/computers', card.deviceId]">
+                          <ng-container *ngTemplateOutlet="computerLabel" />
+                        </a>
+                      }
                     }
                   </details>
                 } @else {
                   <button type="button" class="tree-button tree-indent" [class.selected]="selected"
-                    (click)="state.setPlace(place)">
+                    (click)="selectPlace(place)">
                     <ng-container *ngTemplateOutlet="locationLabel; context: { $implicit: 'Каб. ' + room.name, level: 'room' }" />
                     <span>{{ room.count }}</span>
                   </button>
@@ -126,6 +137,13 @@
       }
     </div>
   </aside>
+  @for (id of embeddedCardIds(); track id) {
+    <app-computer-card class="registry-card" [embeddedId]="id" (removed)="selectedId.set(null)" />
+  } @empty {
+    <ng-container *ngTemplateOutlet="registryTable" />
+  }
+</div>
+<ng-template #registryTable>
   <section class="panel table-panel" aria-label="Компьютеры">
     <div class="table-top">
       <div class="segments" aria-label="Статус карточек">
@@ -186,4 +204,4 @@
       </footer>
     }
   </section>
-</div>
+</ng-template>
